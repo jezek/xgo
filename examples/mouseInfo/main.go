@@ -20,9 +20,15 @@ func main() {
 	fmt.Println()
 
 	fmt.Println("Mouse info:")
-	s, err := d.Mouse().Status()
+	s, err := d.Pointer().Status()
 	if err != nil {
 		fmt.Println("Can't obtain mouse status due to error:", err)
 	}
 	fmt.Printf("x: %d, y: %d, screen: %d, buttons: %v\n", s.X, s.Y, s.Screen.Id(), s.Button)
+	a := d.ActiveWindow()
+	ws, err := a.Pointer().Status()
+	if err != nil {
+		fmt.Println("Can't obtain mouse status for window %s due to error:", a, err)
+	}
+	fmt.Println(ws)
 }

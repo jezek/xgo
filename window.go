@@ -18,11 +18,14 @@ type Window struct {
 	s  *Screen
 	p  *Window
 	ch []*Window
+	wp *WindowPointer
 }
 
-type WindowAttributes struct {
-	*xproto.GetWindowAttributesReply
-	w *Window
+func (w *Window) Screen() *Screen {
+	if w.s == nil {
+		log.Fatalf("Window %s has no screen", w)
+	}
+	return w.s
 }
 
 func (w *Window) Name() string {
@@ -58,7 +61,7 @@ func (w *Window) Parent() (*Window, error) {
 		}
 		w.p = &Window{
 			t.Parent, w.s,
-			nil, nil,
+			nil, nil, nil,
 		}
 	}
 	return w.p, nil
@@ -94,7 +97,7 @@ func (w *Window) Children() ([]*Window, error) {
 		for i := range w.ch {
 			chw := &Window{
 				t.Children[i], w.s,
-				w, nil,
+				w, nil, nil,
 			}
 			w.ch[i] = chw
 		}
@@ -104,6 +107,11 @@ func (w *Window) Children() ([]*Window, error) {
 
 func (w *Window) String() string {
 	return fmt.Sprintf("wid: %d", w.Window)
+}
+
+type WindowAttributes struct {
+	*xproto.GetWindowAttributesReply
+	w *Window
 }
 
 func (w *Window) Attributes() (*WindowAttributes, error) {
@@ -122,4 +130,14 @@ func (w *Window) IsVisible() bool {
 		return false
 	}
 	return ret.MapState == IsViewable
+}
+
+func (w *Window) Pointer() *WindowPointer {
+	if w.wp == nil {
+		w.wp = &WindowPointer{
+			w.s.d.Pointer(),
+			w,
+		}
+	}
+	return w.wp
 }

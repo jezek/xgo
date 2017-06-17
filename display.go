@@ -1,6 +1,7 @@
 package xgo
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -14,7 +15,7 @@ type Display struct {
 	name  string
 	setup *Setup
 	ss    []*Screen
-	m     *Mouse
+	p     *Pointer
 }
 
 // Creates a new Display instance.
@@ -80,7 +81,7 @@ func (d *Display) ActiveWindow() *Window {
 	}
 	return &Window{
 		xproto.Window(xgb.Get32(reply.Value)), root.s,
-		nil, nil,
+		nil, nil, nil,
 	}
 }
 
@@ -116,11 +117,32 @@ func (d *Display) NumberOfScreens() int {
 	return len(d.Setup().i.Roots)
 }
 
-func (d *Display) Mouse() *Mouse {
-	if d.m == nil {
-		d.m = &Mouse{d}
+func (d *Display) Pointer() *Pointer {
+	if d.p == nil {
+		d.p = &Pointer{d}
 	}
-	return d.m
+	return d.p
+}
+
+func (d *Display) FindWindow(wid uint32) (*Window, error) {
+	xwid := xproto.Window(wid)
+	reply, err := xproto.QueryTree(d.Conn, xwid).Reply()
+	if err != nil {
+		return nil, err
+	}
+	var ws *Screen
+	for _, s := range d.Screens() {
+		if s.Window().Window == reply.Root {
+			ws = s
+		}
+	}
+	if ws == nil {
+		return nil, fmt.Errorf("Can't find screen for root window: %d", reply.Root)
+	}
+	return &Window{
+		xwid, ws,
+		nil, nil, nil,
+	}, nil
 }
 
 // Setup instance

@@ -1,6 +1,10 @@
 package xgo
 
-import "github.com/BurntSushi/xgb/xproto"
+import (
+	"log"
+
+	"github.com/BurntSushi/xgb/xproto"
+)
 
 // Screen instance
 type Screen struct {
@@ -9,6 +13,13 @@ type Screen struct {
 	id  int
 	def bool
 	w   *Window
+}
+
+func (s *Screen) Display() *Display {
+	if s.d == nil {
+		log.Fatalf("Screen %d has no display", s.id)
+	}
+	return s.d
 }
 
 func (s *Screen) Default() bool {
@@ -23,7 +34,7 @@ func (s *Screen) Window() *Window {
 	if s.w == nil {
 		s.w = &Window{
 			s.ScreenInfo.Root, s,
-			nil, nil,
+			nil, nil, nil,
 		}
 	}
 	return s.w
