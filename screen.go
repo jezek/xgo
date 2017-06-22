@@ -34,7 +34,7 @@ func (s *Screen) Window() *Window {
 	if s.w == nil {
 		s.w = &Window{
 			s.ScreenInfo.Root, s,
-			nil, nil, nil,
+			nil,
 		}
 	}
 	return s.w

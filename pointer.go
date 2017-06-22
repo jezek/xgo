@@ -2,39 +2,49 @@ package xgo
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/BurntSushi/xgb/xproto"
 )
 
-type Pointer struct {
+type DisplayPointer struct {
 	d *Display
 }
 
-type PointerStatus struct {
-	Screen *Screen
-	X, Y   int16
-	Button [6]bool
-}
-
-func (p *Pointer) statusFromQueryPointerReply(s *Screen, reply *xproto.QueryPointerReply) PointerStatus {
-	return PointerStatus{
-		s,
-		reply.RootX, reply.RootY,
-		p.buttonsFromMask(reply.Mask),
-	}
-}
-
-func (p *Pointer) Status() (PointerStatus, error) {
+func (p *DisplayPointer) Status() (PointerStatus, error) {
 	for _, s := range p.d.Screens() {
-		reply, err := xproto.QueryPointer(p.d.Conn, s.Window().Window).Reply()
+		ps, err := s.Window().Pointer().Status()
 		if err != nil {
 			return PointerStatus{}, err
 		}
-		if reply.SameScreen {
-			return p.statusFromQueryPointerReply(s, reply), nil
+		if ps.SameScreen {
+			return ps, nil
 		}
 	}
 	return PointerStatus{}, fmt.Errorf("Mouse pointer not found")
+}
+
+type Pointer struct {
+	w *Window
+}
+
+type PointerStatus struct {
+	*xproto.QueryPointerReply
+	Pointer *Pointer
+	Root    *Window
+	Child   *Window
+	Button  [6]bool
+}
+
+func (p *Pointer) Window() *Window {
+	if p.w == nil {
+		log.Fatalf("Poiner %s has no window", p)
+	}
+	return p.w
+}
+
+func (p *Pointer) String() string {
+	return fmt.Sprintf("p%s", p.Window())
 }
 
 func (p *Pointer) buttonsFromMask(m uint16) [6]bool {
@@ -48,33 +58,29 @@ func (p *Pointer) buttonsFromMask(m uint16) [6]bool {
 	}
 }
 
-type WindowPointer struct {
-	*Pointer
-	w *Window
-}
-
-type WindowPointerStatus struct {
-	PointerStatus
-	Window   *Window
-	OnScreen bool
-	X, Y     int16
-	Child    *Window
-}
-
-func (p *WindowPointer) Status() (WindowPointerStatus, error) {
-	reply, err := xproto.QueryPointer(p.d.Conn, p.w.Window).Reply()
+func (p *Pointer) Status() (PointerStatus, error) {
+	reply, err := xproto.QueryPointer(
+		p.Window().Screen().Display().Conn,
+		p.Window().Window,
+	).Reply()
 	if err != nil {
-		return WindowPointerStatus{}, err
+		return PointerStatus{}, err
 	}
-	var child *Window
-	if reply.Child != 0 {
-		child, _ = p.w.Screen().Display().FindWindow(uint32(reply.Child))
+	var root, child *Window
+	if reply.Root != xproto.WindowNone {
+		root, _ = p.Window().Screen().Display().FindWindow(uint32(reply.Root))
 	}
-	return WindowPointerStatus{
-		p.Pointer.statusFromQueryPointerReply(p.w.s, reply),
-		p.w,
-		reply.SameScreen,
-		reply.WinX, reply.WinY,
-		child,
+	if reply.Child != xproto.WindowNone {
+		child, _ = p.Window().Screen().Display().FindWindow(uint32(reply.Child))
+	}
+	return PointerStatus{
+		reply,
+		p,
+		root, child,
+		p.buttonsFromMask(reply.Mask),
 	}, nil
+}
+
+func (p *Pointer) MotionNotify(stop <-chan struct{}) <-chan xproto.MotionNotifyEvent {
+	return p.Window().Screen().Display().Events().listenMotionNotify(p.Window(), stop)
 }

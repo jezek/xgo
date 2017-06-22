@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
@@ -15,7 +16,8 @@ type Display struct {
 	name  string
 	setup *Setup
 	ss    []*Screen
-	p     *Pointer
+	p     *DisplayPointer
+	e     *Events
 }
 
 // Creates a new Display instance.
@@ -33,7 +35,7 @@ func OpenDisplay(d string) (*Display, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := &Display{conn, d, nil, nil, nil}
+	ret := &Display{conn, d, nil, nil, nil, nil}
 	debugf("Opened display: %v", ret)
 
 	return ret, nil
@@ -45,14 +47,14 @@ func (d *Display) Name() string {
 
 func (d *Display) Setup() *Setup {
 	if d.setup == nil {
-		d.setup = &Setup{d, xproto.Setup(d.Conn)}
+		d.setup = &Setup{xproto.Setup(d.Conn), d}
 	}
 	return d.setup
 }
 
 func (d *Display) Screens() []*Screen {
 	if d.ss == nil {
-		sis := d.Setup().i.Roots
+		sis := d.Setup().Roots
 		d.ss = make([]*Screen, len(sis))
 		ds := d.Conn.DefaultScreen
 		for i := range d.ss {
@@ -81,13 +83,13 @@ func (d *Display) ActiveWindow() *Window {
 	}
 	return &Window{
 		xproto.Window(xgb.Get32(reply.Value)), root.s,
-		nil, nil, nil,
+		nil,
 	}
 }
 
 func (d *Display) DefaultScreen() *Screen {
 	ds := d.Conn.DefaultScreen
-	return &Screen{&d.Setup().i.Roots[ds], d, ds, true, nil}
+	return &Screen{&d.Setup().Roots[ds], d, ds, true, nil}
 }
 
 func (d *Display) NumberOfDesktops() uint32 {
@@ -114,12 +116,12 @@ func (d *Display) NumberOfDesktops() uint32 {
 }
 
 func (d *Display) NumberOfScreens() int {
-	return len(d.Setup().i.Roots)
+	return len(d.Setup().Roots)
 }
 
-func (d *Display) Pointer() *Pointer {
+func (d *Display) Pointer() *DisplayPointer {
 	if d.p == nil {
-		d.p = &Pointer{d}
+		d.p = &DisplayPointer{d}
 	}
 	return d.p
 }
@@ -141,12 +143,25 @@ func (d *Display) FindWindow(wid uint32) (*Window, error) {
 	}
 	return &Window{
 		xwid, ws,
-		nil, nil, nil,
+		nil,
 	}, nil
+}
+
+func (d *Display) Events() *Events {
+	if d.e == nil {
+		d.e = &Events{
+			d.Conn,
+			&sync.Mutex{},
+			nil,
+			nil,
+			map[byte]map[xproto.Window]map[chan<- xgb.Event]xgb.Event{},
+		}
+	}
+	return d.e
 }
 
 // Setup instance
 type Setup struct {
+	*xproto.SetupInfo
 	d *Display
-	i *xproto.SetupInfo
 }

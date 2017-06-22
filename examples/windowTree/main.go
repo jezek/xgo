@@ -27,14 +27,16 @@ func main() {
 }
 
 func printWithCildren(w *xgo.Window, depth int) {
-	if w.IsVisible() && w.Name() != "" {
+	if true { //w.IsVisible() && w.Name() != "" {
 		for i := 0; i < depth-1; i++ {
 			fmt.Print("| ")
 		}
 		if depth > 0 {
 			fmt.Print("|- ")
 		}
-		fmt.Printf("%s - %s\n", w, w.Name())
+		a, _ := w.Attributes()
+		fmt.Printf("%s - \"%s\" dnpem: %b\n", w, w.Name(), a.GetWindowAttributesReply.DoNotPropagateMask)
+		//fmt.Printf("%[1]*s %#v\n", depth*2, "", a.GetWindowAttributesReply.DoNotPropagateMask)
 	}
 	chs, err := w.Children()
 	if err != nil {

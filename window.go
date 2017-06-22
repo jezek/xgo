@@ -15,10 +15,8 @@ const (
 
 type Window struct {
 	xproto.Window
-	s  *Screen
-	p  *Window
-	ch []*Window
-	wp *WindowPointer
+	s *Screen
+	p *Pointer
 }
 
 func (w *Window) Screen() *Screen {
@@ -54,17 +52,14 @@ func (w *Window) Parent() (*Window, error) {
 	if w.IsRoot() {
 		return nil, nil
 	}
-	if w.p == nil {
-		t, err := xproto.QueryTree(w.s.d.Conn, w.Window).Reply()
-		if err != nil {
-			return nil, err
-		}
-		w.p = &Window{
-			t.Parent, w.s,
-			nil, nil, nil,
-		}
+	t, err := xproto.QueryTree(w.s.d.Conn, w.Window).Reply()
+	if err != nil {
+		return nil, err
 	}
-	return w.p, nil
+	return &Window{
+		t.Parent, w.Screen(),
+		nil,
+	}, nil
 }
 
 func (w *Window) Parents() ([]*Window, error) {
@@ -88,25 +83,23 @@ func (w *Window) Parents() ([]*Window, error) {
 }
 
 func (w *Window) Children() ([]*Window, error) {
-	if w.ch == nil {
-		t, err := xproto.QueryTree(w.s.d.Conn, w.Window).Reply()
-		if err != nil {
-			return nil, err
-		}
-		w.ch = make([]*Window, t.ChildrenLen)
-		for i := range w.ch {
-			chw := &Window{
-				t.Children[i], w.s,
-				w, nil, nil,
-			}
-			w.ch[i] = chw
-		}
+	t, err := xproto.QueryTree(w.s.d.Conn, w.Window).Reply()
+	if err != nil {
+		return nil, err
 	}
-	return w.ch, nil
+	ch := make([]*Window, t.ChildrenLen)
+	for i := range ch {
+		chw := &Window{
+			t.Children[i], w.Screen(),
+			nil,
+		}
+		ch[i] = chw
+	}
+	return ch, nil
 }
 
 func (w *Window) String() string {
-	return fmt.Sprintf("wid: %d", w.Window)
+	return fmt.Sprintf("wid:%d", w.Window)
 }
 
 type WindowAttributes struct {
@@ -132,12 +125,9 @@ func (w *Window) IsVisible() bool {
 	return ret.MapState == IsViewable
 }
 
-func (w *Window) Pointer() *WindowPointer {
-	if w.wp == nil {
-		w.wp = &WindowPointer{
-			w.s.d.Pointer(),
-			w,
-		}
+func (w *Window) Pointer() *Pointer {
+	if w.p == nil {
+		w.p = &Pointer{w}
 	}
-	return w.wp
+	return w.p
 }
