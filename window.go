@@ -127,7 +127,7 @@ func (w *Window) IsVisible() bool {
 
 func (w *Window) Pointer() *Pointer {
 	if w.p == nil {
-		w.p = &Pointer{w}
+		w.p = &Pointer{w, nil}
 	}
 	return w.p
 }

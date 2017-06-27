@@ -8,16 +8,20 @@ import (
 
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/xproto"
+	"github.com/BurntSushi/xgb/xtest"
 )
 
 // Display instance.
 type Display struct {
 	*xgb.Conn
-	name  string
+	name string
+
+	mx    *sync.Mutex
 	setup *Setup
 	ss    []*Screen
 	p     *DisplayPointer
 	e     *Events
+	ext   map[string]error
 }
 
 // Creates a new Display instance.
@@ -35,7 +39,7 @@ func OpenDisplay(d string) (*Display, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := &Display{conn, d, nil, nil, nil, nil}
+	ret := &Display{conn, d, &sync.Mutex{}, nil, nil, nil, nil, make(map[string]error)}
 	debugf("Opened display: %v", ret)
 
 	return ret, nil
@@ -46,6 +50,8 @@ func (d *Display) Name() string {
 }
 
 func (d *Display) Setup() *Setup {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	if d.setup == nil {
 		d.setup = &Setup{xproto.Setup(d.Conn), d}
 	}
@@ -53,6 +59,8 @@ func (d *Display) Setup() *Setup {
 }
 
 func (d *Display) Screens() []*Screen {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	if d.ss == nil {
 		sis := d.Setup().Roots
 		d.ss = make([]*Screen, len(sis))
@@ -120,6 +128,8 @@ func (d *Display) NumberOfScreens() int {
 }
 
 func (d *Display) Pointer() *DisplayPointer {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	if d.p == nil {
 		d.p = &DisplayPointer{d}
 	}
@@ -148,6 +158,8 @@ func (d *Display) FindWindow(wid uint32) (*Window, error) {
 }
 
 func (d *Display) Events() *Events {
+	d.mx.Lock()
+	defer d.mx.Unlock()
 	if d.e == nil {
 		d.e = &Events{
 			d.Conn,
@@ -158,6 +170,23 @@ func (d *Display) Events() *Events {
 		}
 	}
 	return d.e
+}
+
+func (d *Display) extension(s string) error {
+	d.mx.Lock()
+	defer d.mx.Unlock()
+	switch s {
+	case "xtest":
+		if err, ok := d.ext[s]; ok {
+			return err
+		}
+		err := xtest.Init(d.Conn)
+		d.ext[s] = err
+		return err
+	default:
+		return fmt.Errorf("Unknown extension '%s'", s)
+	}
+	return nil
 }
 
 // Setup instance
