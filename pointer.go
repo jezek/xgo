@@ -149,3 +149,32 @@ func (c *PointerControll) MoveRelative(x, y int) error {
 	}
 	return nil
 }
+
+func (c *PointerControll) ClickLeft() error {
+	if err := c.Display().extension("xtest"); err != nil {
+		return err
+	}
+	if err := xtest.FakeInputChecked(
+		c.Display().Conn,
+		xproto.ButtonPress,
+		xproto.ButtonIndex1,
+		xproto.TimeCurrentTime,
+		c.Screen().Window().Window,
+		int16(0), int16(0),
+		0,
+	).Check(); err != nil {
+		return err
+	}
+	if err := xtest.FakeInputChecked(
+		c.Display().Conn,
+		xproto.ButtonRelease,
+		xproto.ButtonIndex1,
+		xproto.TimeCurrentTime,
+		c.Screen().Window().Window,
+		int16(0), int16(0),
+		0,
+	).Check(); err != nil {
+		return err
+	}
+	return nil
+}
