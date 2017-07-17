@@ -150,11 +150,11 @@ func (c *PointerControll) MoveRelative(x, y int) error {
 	return nil
 }
 
-func (c *PointerControll) click(bi byte) error {
+func (c *PointerControll) down(bi byte) error {
 	if err := c.Display().extension("xtest"); err != nil {
 		return err
 	}
-	if err := xtest.FakeInputChecked(
+	return xtest.FakeInputChecked(
 		c.Display().Conn,
 		xproto.ButtonPress,
 		bi,
@@ -162,10 +162,14 @@ func (c *PointerControll) click(bi byte) error {
 		c.Screen().Window().Window,
 		int16(0), int16(0),
 		0,
-	).Check(); err != nil {
+	).Check()
+}
+
+func (c *PointerControll) up(bi byte) error {
+	if err := c.Display().extension("xtest"); err != nil {
 		return err
 	}
-	if err := xtest.FakeInputChecked(
+	return xtest.FakeInputChecked(
 		c.Display().Conn,
 		xproto.ButtonRelease,
 		bi,
@@ -173,17 +177,46 @@ func (c *PointerControll) click(bi byte) error {
 		c.Screen().Window().Window,
 		int16(0), int16(0),
 		0,
-	).Check(); err != nil {
+	).Check()
+}
+
+func (c *PointerControll) click(bi byte) error {
+	if err := c.Display().extension("xtest"); err != nil {
+		return err
+	}
+	if err := c.down(bi); err != nil {
+		return err
+	}
+	if err := c.up(bi); err != nil {
 		return err
 	}
 	return nil
 }
+
 func (c *PointerControll) ClickLeft() error {
 	return c.click(xproto.ButtonIndex1)
 }
+
 func (c *PointerControll) ClickRight() error {
 	return c.click(xproto.ButtonIndex3)
 }
+
+func (c *PointerControll) DownLeft() error {
+	return c.down(xproto.ButtonIndex1)
+}
+
+func (c *PointerControll) DownRight() error {
+	return c.down(xproto.ButtonIndex3)
+}
+
+func (c *PointerControll) UpLeft() error {
+	return c.up(xproto.ButtonIndex1)
+}
+
+func (c *PointerControll) UpRight() error {
+	return c.up(xproto.ButtonIndex3)
+}
+
 func (c *PointerControll) ScrollUp() error {
 	return c.click(xproto.ButtonIndex4)
 }
