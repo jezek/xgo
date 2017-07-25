@@ -17,6 +17,7 @@ type Window struct {
 	xproto.Window
 	s *Screen
 	p *Pointer
+	k *Keyboard
 }
 
 func (w *Window) Screen() *Screen {
@@ -58,7 +59,7 @@ func (w *Window) Parent() (*Window, error) {
 	}
 	return &Window{
 		t.Parent, w.Screen(),
-		nil,
+		nil, nil,
 	}, nil
 }
 
@@ -91,7 +92,7 @@ func (w *Window) Children() ([]*Window, error) {
 	for i := range ch {
 		chw := &Window{
 			t.Children[i], w.Screen(),
-			nil,
+			nil, nil,
 		}
 		ch[i] = chw
 	}
@@ -130,4 +131,11 @@ func (w *Window) Pointer() *Pointer {
 		w.p = &Pointer{w, nil}
 	}
 	return w.p
+}
+
+func (w *Window) Keyboard() *Keyboard {
+	if w.k == nil {
+		w.k = &Keyboard{w, nil}
+	}
+	return w.k
 }

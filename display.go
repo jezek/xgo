@@ -91,7 +91,7 @@ func (d *Display) ActiveWindow() *Window {
 	}
 	return &Window{
 		xproto.Window(xgb.Get32(reply.Value)), root.s,
-		nil,
+		nil, nil,
 	}
 }
 
@@ -153,7 +153,7 @@ func (d *Display) FindWindow(wid uint32) (*Window, error) {
 	}
 	return &Window{
 		xwid, ws,
-		nil,
+		nil, nil,
 	}, nil
 }
 

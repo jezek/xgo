@@ -114,76 +114,67 @@ func (c *PointerControll) Display() *Display {
 	return c.Screen().Display()
 }
 
-func (c *PointerControll) Move(x, y int) error {
+func (c *PointerControll) move(x, y int, rel bool) error {
 	if err := c.Display().extension("xtest"); err != nil {
 		return err
 	}
+
+	r := byte(0)
+	if rel {
+		r = 1
+	}
+
 	if err := xtest.FakeInputChecked(
 		c.Display().Conn,
 		xproto.MotionNotify,
-		0,
+		r,
 		xproto.TimeCurrentTime,
-		c.Screen().Window().Window,
+		xproto.WindowNone, //c.Screen().Window().Window
 		int16(x), int16(y),
 		0,
 	).Check(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func (c *PointerControll) Move(x, y int) error {
+	return c.move(x, y, false)
 }
 
 func (c *PointerControll) MoveRelative(x, y int) error {
+	return c.move(x, y, true)
+}
+
+func (c *PointerControll) button(bi byte, up bool) error {
 	if err := c.Display().extension("xtest"); err != nil {
 		return err
 	}
-	if err := xtest.FakeInputChecked(
-		c.Display().Conn,
-		xproto.MotionNotify,
-		1,
-		xproto.TimeCurrentTime,
-		c.Screen().Window().Window,
-		int16(x), int16(y),
-		0,
-	).Check(); err != nil {
-		return err
+
+	t := byte(xproto.ButtonPress)
+	if up {
+		t = xproto.ButtonRelease
 	}
-	return nil
+
+	return xtest.FakeInputChecked(
+		c.Display().Conn,
+		t,
+		bi,
+		xproto.TimeCurrentTime,
+		xproto.WindowNone, //c.Screen().Window().Window
+		0, 0, 0,
+	).Check()
 }
 
 func (c *PointerControll) down(bi byte) error {
-	if err := c.Display().extension("xtest"); err != nil {
-		return err
-	}
-	return xtest.FakeInputChecked(
-		c.Display().Conn,
-		xproto.ButtonPress,
-		bi,
-		xproto.TimeCurrentTime,
-		c.Screen().Window().Window,
-		int16(0), int16(0),
-		0,
-	).Check()
+	return c.button(bi, false)
 }
 
 func (c *PointerControll) up(bi byte) error {
-	if err := c.Display().extension("xtest"); err != nil {
-		return err
-	}
-	return xtest.FakeInputChecked(
-		c.Display().Conn,
-		xproto.ButtonRelease,
-		bi,
-		xproto.TimeCurrentTime,
-		c.Screen().Window().Window,
-		int16(0), int16(0),
-		0,
-	).Check()
+	return c.button(bi, true)
 }
 
 func (c *PointerControll) click(bi byte) error {
-	if err := c.Display().extension("xtest"); err != nil {
-		return err
-	}
 	if err := c.down(bi); err != nil {
 		return err
 	}
