@@ -14,17 +14,20 @@ func main() {
 		return
 	}
 
-	awkc := d.ActiveWindow().Screen().Window().Keyboard().Control()
+	//awkc := d.ActiveWindow().Screen().Window().Keyboard().Control()
+	awkc := d.ActiveWindow().Keyboard().Control()
 
-	fmt.Println("Writing to active window's root window.")
+	//fmt.Println("Writing to active window's root window.")
+	fmt.Println("Writing to active window")
 
-	//awkc.Stroke(0x0061)
-	//awkc.Stroke(0x0062)
-	//awkc.Stroke(0x0063)
-	awkc.Write("abc%\"Enter\"")
+	if err := awkc.Write("%\"aacute\""); err != nil {
+		fmt.Println("Write error:", err)
+	}
+	//awkc.Write("あbč%\"Enter\"")
 
 	time.Sleep(time.Second)
 	fmt.Println("Done.")
+	return
 
 	fmt.Println("Sending Ctrl+C to active window's root window.")
 

@@ -2188,6 +2188,15 @@ var keysym map[string]xproto.Keysym = map[string]xproto.Keysym{
 	"XF86LogGrabInfo":       0x1008FE25,
 }
 
+var ksString map[xproto.Keysym]string
+
+func init() {
+	ksString = make(map[xproto.Keysym]string)
+	for k, v := range keysym {
+		ksString[v] = k
+	}
+}
+
 /*
 # Mapping of X11 keysyms to ISO 10646 / Unicode
 #

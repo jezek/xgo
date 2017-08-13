@@ -161,13 +161,30 @@ func (d *Display) Events() *Events {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	if d.e == nil {
+		xevents := make(chan xgb.Event)
+		xerrors := make(chan xgb.Error)
 		d.e = &Events{
-			d.Conn,
+			xevents, xerrors,
 			&sync.Mutex{},
 			nil,
 			nil,
 			map[byte]map[xproto.Window]map[chan<- xgb.Event]xgb.Event{},
+			map[byte]map[chan<- xgb.Event]xgb.Event{},
 		}
+		go func() {
+			for {
+				evt, err := d.Conn.WaitForEvent()
+				if evt == nil && err == nil {
+					//TODO proper closechannel, etc somehow
+					return
+				}
+				if evt != nil {
+					xevents <- evt
+				} else {
+					xerrors <- err
+				}
+			}
+		}()
 	}
 	return d.e
 }
