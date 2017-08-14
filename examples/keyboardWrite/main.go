@@ -1,13 +1,26 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
-	"time"
 	"xgo"
 )
 
+var keySymString string
+
 func main() {
+	flag.Parse()
+
+	keySymString = flag.Arg(0)
+
+	if flag.NArg() != 1 {
+		//flag.PrintDefaults()
+		//os.Exit(1)
+		keySymString = "aacute"
+		//awkc.Write("あbč%\"Enter\"")
+	}
+
 	d, err := xgo.OpenDisplay("")
 	if err != nil {
 		log.Fatal(err)
@@ -18,24 +31,11 @@ func main() {
 	awkc := d.ActiveWindow().Keyboard().Control()
 
 	//fmt.Println("Writing to active window's root window.")
-	fmt.Println("Writing to active window")
+	fmt.Printf("Writing \"%s\" to active window: ", keySymString)
 
-	if err := awkc.Write("%\"aacute\""); err != nil {
+	if err := awkc.Write("%\"" + keySymString + "\""); err != nil {
 		fmt.Println("Write error:", err)
 	}
-	//awkc.Write("あbč%\"Enter\"")
 
-	time.Sleep(time.Second)
-	fmt.Println("Done.")
-	return
-
-	fmt.Println("Sending Ctrl+C to active window's root window.")
-
-	//awkc.Down(0xffe3)
-	//awkc.Stroke(0x0063)
-	//awkc.Up(0xffe3)
-	awkc.Write("\uffe3c%-\"Control_L\"")
-
-	time.Sleep(time.Second)
-	fmt.Println("Done.")
+	fmt.Println("\nDone.")
 }
