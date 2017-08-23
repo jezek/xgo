@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/BurntSushi/xgb/xproto"
@@ -14,6 +15,8 @@ import (
 
 //var keyLog *log.Logger = log.New(os.Stderr, "keys: ", log.LstdFlags)
 var keyLog *log.Logger = log.New(ioutil.Discard, "keys: ", log.LstdFlags)
+
+var keyWriteMx *sync.Mutex = &sync.Mutex{}
 
 type Keyboard struct {
 	w *Window
@@ -411,7 +414,7 @@ func readAction(b *bytes.Buffer) (keyAction, error) {
 				return nil, errInvalidKeyAction{ka}
 			}
 
-			if a == 'i' {
+			if a == '-' {
 				return keySymUp{ks}, nil
 			}
 			return keySymDown{ks}, nil
@@ -460,10 +463,13 @@ func (c *KeyboardControll) Write(s string) error {
 		return err
 	}
 	keyLog.Printf("actions from \"%s\": %v", s, actions)
+	keyWriteMx.Lock()
+	defer keyWriteMx.Unlock()
 	for _, a := range actions {
 		if err := a.action(c); err != nil {
 			return err
 		}
+		time.Sleep(50 * time.Millisecond)
 	}
 	return nil
 }

@@ -8,8 +8,10 @@ import (
 )
 
 var keySymString string
+var formated bool
 
 func main() {
+	flag.BoolVar(&formated, "formated", false, "Argumet is a formated string to write")
 	flag.Parse()
 
 	keySymString = flag.Arg(0)
@@ -18,6 +20,9 @@ func main() {
 		//flag.PrintDefaults()
 		//os.Exit(1)
 		keySymString = "aacute"
+		if formated {
+			keySymString = "%\"" + keySymString + "\""
+		}
 		//awkc.Write("あbč%\"Enter\"")
 	}
 
@@ -30,10 +35,12 @@ func main() {
 	//awkc := d.ActiveWindow().Screen().Window().Keyboard().Control()
 	awkc := d.ActiveWindow().Keyboard().Control()
 
-	//fmt.Println("Writing to active window's root window.")
-	fmt.Printf("Writing \"%s\" to active window: ", keySymString)
-
-	if err := awkc.Write("%\"" + keySymString + "\""); err != nil {
+	t := keySymString
+	if !formated {
+		t = "%\"" + t + "\""
+	}
+	fmt.Printf("Writing \"%s\" to active window: ", t)
+	if err := awkc.Write(t); err != nil {
 		fmt.Println("Write error:", err)
 	}
 
