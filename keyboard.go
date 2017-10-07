@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -13,8 +13,8 @@ import (
 	"github.com/BurntSushi/xgb/xtest"
 )
 
-//var keyLog *log.Logger = log.New(os.Stderr, "keys: ", log.LstdFlags)
-var keyLog *log.Logger = log.New(ioutil.Discard, "keys: ", log.LstdFlags)
+//var keyLog *log.Logger = log.New(ioutil.Discard, "keys: ", log.LstdFlags)
+var keyLog *log.Logger = log.New(os.Stderr, "keys: ", log.LstdFlags)
 
 var keyWriteMx *sync.Mutex = &sync.Mutex{}
 
@@ -102,7 +102,7 @@ func (c *KeyboardControll) keyCodes(ks xproto.Keysym) map[xproto.Keycode][]xprot
 }
 
 func (c *KeyboardControll) keyCodeInput(kc xproto.Keycode, up bool) error {
-	keyLog.Printf("KeyboardControll: keyCodeInput: start%v, %v", kc, up)
+	keyLog.Printf("KeyboardControll: keyCodeInput: start %v, %v", kc, up)
 	defer keyLog.Printf("KeyboardControll: keyCodeInput: end")
 
 	if err := c.Display().extension("xtest"); err != nil {
@@ -127,6 +127,30 @@ func (c *KeyboardControll) keyCodeInput(kc xproto.Keycode, up bool) error {
 		return err
 	}
 	return nil
+}
+
+func (c *KeyboardControll) unusedKeyCodes() []xproto.Keycode {
+	min, max := c.Display().Setup().MinKeycode, c.Display().Setup().MaxKeycode
+	keyMap, err := xproto.GetKeyboardMapping(c.Display().Conn, min, byte(max-min+1)).Reply()
+	if err != nil {
+		return nil
+	}
+
+	res := []xproto.Keycode{}
+	for kc := int(min); kc <= int(max); kc++ {
+		empty := true
+		for c := 0; c < int(keyMap.KeysymsPerKeycode); c++ {
+			i := (kc-int(min))*int(keyMap.KeysymsPerKeycode) + c
+			if keyMap.Keysyms[i] != 0 {
+				empty = false
+				break
+			}
+		}
+		if empty {
+			res = append(res, xproto.Keycode(kc))
+		}
+	}
+	return res
 }
 
 func (c *KeyboardControll) getUnusedKeyCode() (xproto.Keycode, error) {
@@ -174,11 +198,6 @@ func (c *KeyboardControll) printKeyCodes() {
 	}
 }
 
-func (c *KeyboardControll) waitForMappingNotifyWithSequence(seq uint16, mnch <-chan xproto.MappingNotifyEvent) bool {
-	keyLog.Printf("waitForMappingNotifyWithSequence: %v", seq)
-	return false
-}
-
 func (c *KeyboardControll) remapKeyCode(kc xproto.Keycode, kss []xproto.Keysym) error {
 	keyLog.Printf("KeyboardControll: remapKeyCode: start %v, %v", kc, kss)
 	defer keyLog.Printf("KeyboardControll: remapKeyCode: end")
@@ -216,11 +235,11 @@ func (c *KeyboardControll) remapKeyCode(kc xproto.Keycode, kss []xproto.Keysym) 
 }
 
 func (c *KeyboardControll) keySymInput(ks xproto.Keysym, up bool) (err error) {
-	keyLog.Printf("KeyboardControll: keySymInput: start %x, %v", ks, up)
-	defer keyLog.Printf("KeyboardControll: keySymInput: end")
+	//keyLog.Printf("KeyboardControll: keySymInput: start %x, %v", ks, up)
+	//defer keyLog.Printf("KeyboardControll: keySymInput: end")
 
 	kcs := c.keyCodes(ks)
-	keyLog.Printf("KeyboardControll: keySymInput: keyCodes: %v", kcs)
+	//keyLog.Printf("KeyboardControll: keySymInput: keyCodes: %v", kcs)
 
 	var (
 		kc  xproto.Keycode
@@ -236,35 +255,7 @@ func (c *KeyboardControll) keySymInput(ks xproto.Keysym, up bool) (err error) {
 
 	// no keycode, need to do temporary mapping
 	if kss == nil {
-		tmpKeyCode, e := c.getUnusedKeyCode()
-		if e != nil {
-			//TODO remap used
-			return fmt.Errorf("get unused key code: %s", e)
-		}
-
-		//https://bbs.archlinux.org/viewtopic.php?pid=1715630#p1715630
-		tmpKeySyms := []xproto.Keysym{ks, ks}
-
-		if e := c.remapKeyCode(tmpKeyCode, tmpKeySyms); e != nil {
-			return fmt.Errorf("remap key code: %s", e)
-		}
-
-		defer func() {
-			//TODO don't know why, but I have to wait before mapping back
-			//otherwise the key will mostly not be pressed
-			//can I do this better?
-			time.Sleep(50 * time.Millisecond)
-			tmpKeySyms = []xproto.Keysym{0}
-			if e := c.remapKeyCode(tmpKeyCode, tmpKeySyms); e != nil {
-				if err != nil {
-					e = fmt.Errorf("%s, previous error: %s", e, err)
-				}
-				err = fmt.Errorf("remap key code back: %s", e)
-				return
-			}
-		}()
-
-		kc, kss = tmpKeyCode, c.keyCode(tmpKeyCode)
+		return fmt.Errorf("keysym \"%s\" not mapped to first two keysyms of keycodes", ks)
 	}
 
 	if kss[0] != ks {
@@ -285,52 +276,46 @@ func (c *KeyboardControll) relase(ks xproto.Keysym) error {
 	return c.keySymInput(ks, true)
 }
 
-type keyboarder interface {
-	press(xproto.Keysym) error
-	relase(xproto.Keysym) error
+// if ks is not mapped, maps ks to first unused keycode, or last keycode if no unused
+// returns function that restores mapping to original, or nil if no restore required
+func (c *KeyboardControll) mapKeySym(ks xproto.Keysym) (restore func()) {
+	// check if mapped
+	for _, kss := range c.keyCodes(ks) {
+		for i := range kss {
+			if i > 1 {
+				//TODO use modifiers
+				// look only for first two, other modifiers not implemented
+				break
+			}
+			if kss[i] == ks {
+				return nil
+			}
+		}
+	}
+
+	original := []xproto.Keysym{0}
+	tmpKeyCode, err := c.getUnusedKeyCode()
+	if err != nil {
+		tmpKeyCode = c.Display().Setup().MaxKeycode
+		original = c.keyCode(tmpKeyCode)
+	}
+
+	//https://bbs.archlinux.org/viewtopic.php?pid=1715630#p1715630
+	tmpKeySyms := []xproto.Keysym{ks, ks}
+
+	if err := c.remapKeyCode(tmpKeyCode, tmpKeySyms); err != nil {
+		//TODO what do with error?
+		return nil
+	}
+
+	return func() {
+		//TODO what do with error?
+		c.remapKeyCode(tmpKeyCode, original)
+	}
 }
 
 type keyAction interface {
 	action(keyboarder) error
-}
-
-type keySymDown struct {
-	ks xproto.Keysym
-}
-
-func (a keySymDown) action(k keyboarder) error {
-	return k.press(a.ks)
-}
-
-func (a keySymDown) String() string {
-	return fmt.Sprintf("d{0x%X}", a.ks)
-}
-
-type keySymUp struct {
-	ks xproto.Keysym
-}
-
-func (a keySymUp) action(k keyboarder) error {
-	return k.relase(a.ks)
-}
-
-func (a keySymUp) String() string {
-	return fmt.Sprintf("u{0x%X}", a.ks)
-}
-
-type keySymStroke struct {
-	ks xproto.Keysym
-}
-
-func (a keySymStroke) action(k keyboarder) error {
-	if err := k.press(a.ks); err != nil {
-		return err
-	}
-	return k.relase(a.ks)
-}
-
-func (a keySymStroke) String() string {
-	return fmt.Sprintf("du{0x%X}", a.ks)
 }
 
 type errNoKeysymForUtf struct {
@@ -457,14 +442,67 @@ func keyActionsFromString(s string) ([]keyAction, error) {
 	return res, nil
 }
 
+func (c *KeyboardControll) unmappedKeySymsInActions(actions []keyAction) []xproto.Keysym {
+	res := []xproto.Keysym{}
+	used := map[xproto.Keysym]bool{}
+	for _, a := range actions {
+		if ka, ok := a.(interface {
+			KeySyms() []xproto.Keysym
+		}); ok {
+			for _, ks := range ka.KeySyms() {
+				if !used[ks] {
+					res = append(res, ks)
+					used[ks] = true
+				}
+			}
+		}
+	}
+	return res
+}
+
 func (c *KeyboardControll) Write(s string) error {
 	actions, err := keyActionsFromString(s)
 	if err != nil {
 		return err
 	}
-	keyLog.Printf("actions from \"%s\": %v", s, actions)
+	//keyLog.Printf("actions from \"%s\": %v", s, actions)
 	keyWriteMx.Lock()
 	defer keyWriteMx.Unlock()
+
+	mappedKeyCodes := []xproto.Keycode{}
+	defer func() {
+		if len(mappedKeyCodes) > 0 {
+			for _, kc := range mappedKeyCodes {
+				c.remapKeyCode(kc, []xproto.Keysym{0})
+			}
+		}
+	}()
+
+	unusedKeyCodes := c.unusedKeyCodes()
+	if len(unusedKeyCodes) > 0 {
+		//leave one empty for sure
+		unusedKeyCodes = unusedKeyCodes[1:]
+	}
+	//keyLog.Printf("unusedKeyCodes: %v", unusedKeyCodes)
+	unmappedKeySyms := c.unmappedKeySymsInActions(actions)
+	//keyLog.Printf("unmappedKeySyms: %v", unmappedKeySyms)
+	if len(unmappedKeySyms) > 0 && len(unusedKeyCodes) > 0 {
+		for i := range unusedKeyCodes {
+			if len(unmappedKeySyms) == 0 {
+				break
+			}
+			if err := c.remapKeyCode(unusedKeyCodes[i], []xproto.Keysym{unmappedKeySyms[0], unmappedKeySyms[0]}); err != nil {
+				return err
+			}
+			mappedKeyCodes = append(mappedKeyCodes, unusedKeyCodes[i])
+			unmappedKeySyms = unmappedKeySyms[1:]
+		}
+	}
+	//keyLog.Printf("mappedKeyCodes: %v", mappedKeyCodes)
+	if len(mappedKeyCodes) > 0 {
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	for _, a := range actions {
 		if err := a.action(c); err != nil {
 			return err
