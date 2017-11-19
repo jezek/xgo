@@ -32,7 +32,7 @@ func (a keySymDown) action(k keyboarder) error {
 }
 
 func (a keySymDown) String() string {
-	return fmt.Sprintf("d{0x%X}", a.ks)
+	return fmt.Sprintf("d{%s}", keySymToString(a.ks))
 }
 
 type keySymUp struct {
@@ -53,7 +53,7 @@ func (a keySymUp) action(k keyboarder) error {
 }
 
 func (a keySymUp) String() string {
-	return fmt.Sprintf("u{0x%X}", a.ks)
+	return fmt.Sprintf("u{%s}", keySymToString(a.ks))
 }
 
 type keySymStroke struct {
@@ -78,5 +78,13 @@ func (a keySymStroke) action(k keyboarder) error {
 }
 
 func (a keySymStroke) String() string {
-	return fmt.Sprintf("du{0x%X}", a.ks)
+	return fmt.Sprintf("du{%s}", keySymToString(a.ks))
+}
+
+func keySymToString(ks xproto.Keysym) string {
+	if kss := ksString[ks]; kss != "" {
+		return kss
+	}
+
+	return fmt.Sprintf("0x%X(%v)", ks, ks)
 }
