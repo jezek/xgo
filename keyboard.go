@@ -579,6 +579,7 @@ func (c *KeyboardControll) Write(s string) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 
+	//TODO sometimes an unmapped keysym falis to press
 	for _, a := range actions {
 		if err := a.action(c); err != nil {
 			return err

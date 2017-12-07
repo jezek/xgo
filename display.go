@@ -72,6 +72,38 @@ func (d *Display) Screens() []*Screen {
 	return d.ss
 }
 
+// Creates an 100x100 unmapped window on default screen.
+// Windo position is 0,0 with border 0 and none (default?) attributes.
+func (d *Display) CreateWindow() (*Window, error) {
+	//TODO example
+	wid, err := xproto.NewWindowId(d.Conn)
+	if err != nil {
+		return nil, err
+	}
+
+	screen := d.DefaultScreen()
+	parentWindow := screen.Root
+
+	if err := xproto.CreateWindowChecked(
+		d.Conn,
+		screen.RootDepth,
+		wid,
+		parentWindow,
+		0, 0, //x, y
+		100, 100, //width, height
+		0, //border width
+		xproto.WindowClassInputOutput, //window class
+		screen.RootVisual,             //VisualId
+		0,                             //window attributes mask
+		[]uint32{},                    //window attributes to set for masks
+	).Check(); err != nil {
+		return nil, err
+	}
+
+	//TODO will the created window be there after display closes?
+	return &Window{wid, screen, nil, nil}, nil
+}
+
 func (d *Display) ActiveWindow() *Window {
 	aname := "_NET_ACTIVE_WINDOW"
 	activeAtom, err := xproto.InternAtom(d.Conn, true, uint16(len(aname)), aname).Reply()

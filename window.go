@@ -8,16 +8,17 @@ import (
 )
 
 const (
-	IsUnmapped = iota
-	IsUnviewable
-	IsViewable
+	IsUnmapped   = iota //xproto.MapStateUnmapped
+	IsUnviewable        //xproto.MapStateUnviewable
+	IsViewable          //xproto.MapStateViewable
 )
 
 type Window struct {
-	xproto.Window
-	s *Screen
-	p *Pointer
-	k *Keyboard
+	xproto.Window         //required
+	s             *Screen //required
+
+	p *Pointer  //not required
+	k *Keyboard //not required
 }
 
 func (w *Window) Screen() *Screen {
@@ -124,6 +125,15 @@ func (w *Window) IsVisible() bool {
 		return false
 	}
 	return ret.MapState == IsViewable
+}
+
+// Maps window
+func (w *Window) Map() error {
+	//TODO what if window is allready mapped?
+	if err := xproto.MapWindowChecked(w.Screen().Display().Conn, w.Window).Check(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (w *Window) Pointer() *Pointer {
