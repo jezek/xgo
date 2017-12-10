@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/BurntSushi/xgb/xproto"
+	"github.com/jezek/xgb/xproto"
 )
 
 type keyboarder interface {

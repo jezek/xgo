@@ -3,7 +3,7 @@ package xgo
 import (
 	"log"
 
-	"github.com/BurntSushi/xgb/xproto"
+	"github.com/jezek/xgb/xproto"
 )
 
 // Screen instance

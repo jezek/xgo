@@ -6,9 +6,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/BurntSushi/xgb"
-	"github.com/BurntSushi/xgb/xproto"
-	"github.com/BurntSushi/xgb/xtest"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jezek/xgb/xtest"
 )
 
 // Display instance.

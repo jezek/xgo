@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/BurntSushi/xgb/xproto"
-	"github.com/BurntSushi/xgb/xtest"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jezek/xgb/xtest"
 )
 
 type DisplayPointer struct {

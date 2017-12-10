@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/xgb/xproto"
-	"github.com/BurntSushi/xgb/xtest"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jezek/xgb/xtest"
 )
 
 //var keyLog *log.Logger = log.New(os.Stderr, "keys: ", log.LstdFlags)

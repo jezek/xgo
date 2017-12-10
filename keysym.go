@@ -1,6 +1,6 @@
 package xgo
 
-import "github.com/BurntSushi/xgb/xproto"
+import "github.com/jezek/xgb/xproto"
 
 var keysym map[string]xproto.Keysym = map[string]xproto.Keysym{
 	"VoidSymbol":                  0xffffff,

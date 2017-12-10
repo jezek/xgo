@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BurntSushi/xgb"
-	"github.com/BurntSushi/xgb/xproto"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/xproto"
 )
 
 //var eventsLog *log.Logger = log.New(os.Stderr, "events: ", log.LstdFlags)
