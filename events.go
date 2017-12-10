@@ -337,15 +337,18 @@ func (e *Events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.Mapping
 	eventsLog.Printf("listenMappingNotify: trying to register MappingNotify event listener %v\n", le)
 	e.control <- rcf
 	eventsLog.Printf("listenMappingNotify: registered MappingNotify event listener %v\n", le)
+
 	ret := make(chan xproto.MappingNotifyEvent)
 	go func() {
+		defer close(ret)
+
 		eventsLog.Printf("listenMappingNotify: translator %v: start\n", le)
 		defer eventsLog.Printf("listenMappingNotify: translator %v: end\n", le)
-		defer close(ret)
 
 		unregister := func(control chan<- interface{}) {
 			eventsLog.Printf("listenMappingNotify: translator %v: unregister: start", le)
 			defer eventsLog.Printf("listenMappingNotify: translator %v: unregister: end", le)
+			//TODO rewrite according to CloseNotify
 			for {
 				select {
 				case _, ok := <-le:
@@ -391,5 +394,90 @@ func (e *Events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.Mapping
 			}
 		}
 	}()
+	return ret
+}
+
+func (e *Events) listenCloseNotify(w *Window, stop <-chan struct{}) <-chan struct{} {
+	eventChannel := make(chan xgb.Event)
+
+	registerControlFunction := eventsControlFunc(func(e *Events) {
+		e.registerEventListener(xproto.DestroyNotify, eventChannel, xproto.DestroyNotifyEvent{})
+	})
+
+	unregisterControlFunction := eventsControlFunc(func(e *Events) {
+		e.unregisterEventListener(xproto.DestroyNotify, eventChannel)
+	})
+
+	e.run()
+
+	eventsLog.Printf("listenCloseNotify: trying to register DestroyNotify event listener %v\n", eventChannel)
+	e.control <- registerControlFunction
+	eventsLog.Printf("listenCloseNotify: registered DestroyNotify event listener %v\n", eventChannel)
+
+	ret := make(chan struct{})
+	//TODO who will wait for this function close on exit?
+	go func() {
+		defer close(ret)
+
+		eventsLog.Printf("\tlistenCloseNotify: go func(): start")
+		defer eventsLog.Printf("\tlistenCloseNotify: go func(): end")
+
+		unregisterFunction := func(control chan<- interface{}) {
+			eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction(): start")
+			defer eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction(): end")
+
+			for eventChannel != nil {
+				eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: for loop")
+				select {
+				case _, ok := <-eventChannel:
+					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: select got event")
+					if !ok {
+						eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: event channel was closed")
+						eventChannel = nil
+						break
+					}
+					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: wtf am i doing here?")
+
+				case control <- unregisterControlFunction:
+					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: select unregisterControlFunction sent to control")
+					control = nil
+				}
+			}
+		}
+
+		for stop != nil {
+			eventsLog.Printf("\tlistenCloseNotify: go func: for loop")
+			select {
+			case eventInterface, ok := <-eventChannel:
+				eventsLog.Printf("\tlistenCloseNotify: go func: select got event: %#v, %v", eventInterface, ok)
+				if !ok {
+					eventsLog.Printf("\tlistenCloseNotify: go func: event channel was closed")
+					eventChannel = nil
+					break
+				}
+
+				switch event := eventInterface.(type) {
+				case xproto.DestroyNotifyEvent:
+					eventsLog.Printf("\tlistenCloseNotify: go func: got DestroyNotify event")
+					//TODO what to do?
+					defer unregisterFunction(e.control)
+					stop = nil
+				default:
+					eventsLog.Printf("\tlistenCloseNotify: go func: unknown event type: %T", event)
+				}
+
+			case _, ok := <-stop:
+				if !ok {
+					eventsLog.Printf("\tlistenCloseNotify: go func: stop channel closed")
+					defer unregisterFunction(e.control)
+					stop = nil
+					break
+				}
+				eventsLog.Printf("\tlistenCloseNotify: go func: wtf am i doing here? don't send anything to stop channel")
+			}
+		}
+
+	}()
+
 	return ret
 }

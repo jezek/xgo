@@ -203,6 +203,7 @@ func (d *Display) Events() *Events {
 			map[byte]map[xproto.Window]map[chan<- xgb.Event]xgb.Event{},
 			map[byte]map[chan<- xgb.Event]xgb.Event{},
 		}
+		//TODO who will end you, if needed?
 		go func() {
 			for {
 				evt, err := d.Conn.WaitForEvent()

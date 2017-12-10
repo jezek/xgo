@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	IsUnmapped   = iota //xproto.MapStateUnmapped
-	IsUnviewable        //xproto.MapStateUnviewable
-	IsViewable          //xproto.MapStateViewable
+	IsUnmapped   = xproto.MapStateUnmapped
+	IsUnviewable = xproto.MapStateUnviewable
+	IsViewable   = xproto.MapStateViewable
 )
 
 type Window struct {
@@ -148,4 +148,8 @@ func (w *Window) Keyboard() *Keyboard {
 		w.k = &Keyboard{w, nil}
 	}
 	return w.k
+}
+
+func (w *Window) CloseNotify(stop <-chan struct{}) <-chan struct{} {
+	return w.Screen().Display().Events().listenCloseNotify(w, stop)
 }
