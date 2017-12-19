@@ -20,6 +20,7 @@ func main() {
 	fmt.Println()
 
 	fmt.Println("Visible window with name tree:")
+	fmt.Print(d.Screens())
 	for i, s := range d.Screens() {
 		fmt.Println("Screen", i)
 		printWithCildren(s.Window(), 0)

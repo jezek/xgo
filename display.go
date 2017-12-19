@@ -16,12 +16,12 @@ type Display struct {
 	*xgb.Conn
 	name string
 
-	mx    *sync.Mutex
-	setup *Setup
-	ss    []*Screen
-	p     *DisplayPointer
-	e     *Events
-	ext   map[string]error
+	mx      *sync.Mutex
+	setup   *Setup
+	screens []*Screen
+	p       *DisplayPointer
+	e       *Events
+	ext     map[string]error
 }
 
 // Creates a new Display instance.
@@ -49,27 +49,32 @@ func (d *Display) Name() string {
 	return d.name
 }
 
-func (d *Display) Setup() *Setup {
-	d.mx.Lock()
-	defer d.mx.Unlock()
+func (d *Display) _setup() *Setup {
 	if d.setup == nil {
 		d.setup = &Setup{xproto.Setup(d.Conn), d}
 	}
 	return d.setup
 }
 
+func (d *Display) Setup() *Setup {
+	d.mx.Lock()
+	defer d.mx.Unlock()
+
+	return d._setup()
+}
+
 func (d *Display) Screens() []*Screen {
 	d.mx.Lock()
 	defer d.mx.Unlock()
-	if d.ss == nil {
-		sis := d.Setup().Roots
-		d.ss = make([]*Screen, len(sis))
+	if d.screens == nil {
+		roots := d._setup().Roots
+		d.screens = make([]*Screen, len(roots))
 		ds := d.Conn.DefaultScreen
-		for i := range d.ss {
-			d.ss[i] = &Screen{&sis[i], d, i, i == ds, nil}
+		for i := range d.screens {
+			d.screens[i] = &Screen{&roots[i], d, i, i == ds, nil}
 		}
 	}
-	return d.ss
+	return d.screens
 }
 
 // Creates an 100x100 unmapped window on default screen.
