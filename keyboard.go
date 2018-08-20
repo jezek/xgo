@@ -236,7 +236,7 @@ func (c *KeyboardControll) remapKeyCode(kc xproto.Keycode, kss []xproto.Keysym) 
 
 	stop := make(chan struct{})
 	defer close(stop)
-	mappingNotifyChannel := c.Display().Events().listenMappingNotify(stop)
+	mappingNotifyChannel := c.Display().events().listenMappingNotify(stop)
 
 	ckmCookie := xproto.ChangeKeyboardMappingChecked(c.Display().Conn, 1, kc, 1, kss)
 	if err := ckmCookie.Check(); err != nil {

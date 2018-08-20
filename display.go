@@ -20,8 +20,9 @@ type Display struct {
 	setup   *Setup
 	screens []*Screen
 	p       *DisplayPointer
-	e       *Events
+	e       *events
 	ext     map[string]error
+	a       *atoms
 }
 
 // Creates a new Display instance.
@@ -39,7 +40,7 @@ func OpenDisplay(d string) (*Display, error) {
 	if err != nil {
 		return nil, err
 	}
-	ret := &Display{conn, d, &sync.Mutex{}, nil, nil, nil, nil, make(map[string]error)}
+	ret := &Display{conn, d, &sync.Mutex{}, nil, nil, nil, nil, make(map[string]error), nil}
 	debugf("Opened display: %v", ret)
 
 	return ret, nil
@@ -194,13 +195,13 @@ func (d *Display) FindWindow(wid uint32) (*Window, error) {
 	}, nil
 }
 
-func (d *Display) Events() *Events {
+func (d *Display) events() *events {
 	d.mx.Lock()
 	defer d.mx.Unlock()
 	if d.e == nil {
 		xevents := make(chan xgb.Event)
 		xerrors := make(chan xgb.Error)
-		d.e = &Events{
+		d.e = &events{
 			xevents, xerrors,
 			&sync.Mutex{},
 			nil,
@@ -242,6 +243,20 @@ func (d *Display) extension(s string) error {
 		return fmt.Errorf("Unknown extension '%s'", s)
 	}
 	return nil
+}
+
+func (d *Display) atoms() *atoms {
+	d.mx.Lock()
+	if d.a == nil {
+		d.a = &atoms{
+			&sync.RWMutex{},
+			map[string]xproto.Atom{},
+			map[xproto.Atom]string{},
+			d,
+		}
+	}
+	d.mx.Unlock()
+	return d.a
 }
 
 // Setup instance

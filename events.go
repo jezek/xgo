@@ -1,8 +1,10 @@
 package xgo
 
 import (
+	"io"
 	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -10,12 +12,17 @@ import (
 	"github.com/jezek/xgb/xproto"
 )
 
-//var eventsLog *log.Logger = log.New(os.Stderr, "events: ", log.LstdFlags)
-var eventsLog *log.Logger = log.New(ioutil.Discard, "events: ", log.LstdFlags)
+var eventsLog *log.Logger = func() *log.Logger {
+	writer := io.Writer(ioutil.Discard)
+	if DEBUG {
+		writer = os.Stderr
+	}
+	return log.New(writer, "events: ", log.LstdFlags)
+}()
 
-type eventsControlFunc func(e *Events)
+type eventsControlFunc func(e *events)
 
-type Events struct {
+type events struct {
 	evt chan xgb.Event
 	err <-chan xgb.Error
 
@@ -27,7 +34,7 @@ type Events struct {
 	ols map[byte]map[chan<- xgb.Event]xgb.Event
 }
 
-func (e *Events) run() {
+func (e *events) run() {
 	t := time.Now()
 	eventsLog.Println(t, "run: start")
 	defer eventsLog.Println(t, "run: end")
@@ -99,7 +106,7 @@ func (e *Events) run() {
 	}(e.control, e.running)
 }
 
-func (e *Events) process(events <-chan xgb.Event, control <-chan interface{}) error {
+func (e *events) process(events <-chan xgb.Event, control <-chan interface{}) error {
 	eventsLog.Println("process: start")
 	defer eventsLog.Println("process: end")
 	defer func() {
@@ -144,6 +151,12 @@ func (e *Events) process(events <-chan xgb.Event, control <-chan interface{}) er
 					evch <- event
 					eventsLog.Printf("process: for: event %v sent to listener %v\n", event, evch)
 				}
+			case xproto.ClientMessageEvent:
+				eventsLog.Println("process: for: got ClientMessageEvent:", event)
+				for evch, _ := range e.ols[xproto.ClientMessage] {
+					evch <- event
+					eventsLog.Printf("process: for: event %v sent to listener %v\n", event, evch)
+				}
 			default:
 				eventsLog.Println("process: for: got some other event:", event)
 			}
@@ -170,7 +183,7 @@ func (e *Events) process(events <-chan xgb.Event, control <-chan interface{}) er
 	return nil
 }
 
-func (e *Events) registerEventWindowListener(ev byte, w xproto.Window, l chan<- xgb.Event, init xgb.Event) {
+func (e *events) registerEventWindowListener(ev byte, w xproto.Window, l chan<- xgb.Event, init xgb.Event) {
 	if _, ok := e.wls[ev]; !ok {
 		e.wls[ev] = map[xproto.Window]map[chan<- xgb.Event]xgb.Event{}
 	}
@@ -180,7 +193,7 @@ func (e *Events) registerEventWindowListener(ev byte, w xproto.Window, l chan<- 
 	e.wls[ev][w][l] = init
 }
 
-func (e *Events) unregisterEventWindowListener(ev byte, w xproto.Window, l chan<- xgb.Event) {
+func (e *events) unregisterEventWindowListener(ev byte, w xproto.Window, l chan<- xgb.Event) {
 	if l != nil {
 		close(l)
 		delete(e.wls[ev][w], l)
@@ -195,10 +208,10 @@ func (e *Events) unregisterEventWindowListener(ev byte, w xproto.Window, l chan<
 	}
 }
 
-func (e *Events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xproto.MotionNotifyEvent {
+func (e *events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xproto.MotionNotifyEvent {
 	le := make(chan xgb.Event)
 
-	rcf := eventsControlFunc(func(e *Events) {
+	rcf := eventsControlFunc(func(e *events) {
 		a, err := w.Attributes()
 		if err != nil {
 			eventsLog.Printf("listenMotionNotify: rcf: can't get window %s attributes due to error: %s", w, err)
@@ -220,7 +233,7 @@ func (e *Events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xpro
 		e.registerEventWindowListener(xproto.MotionNotify, w.Window, le, xproto.MotionNotifyEvent{})
 	})
 
-	ucf := eventsControlFunc(func(e *Events) {
+	ucf := eventsControlFunc(func(e *events) {
 		e.unregisterEventWindowListener(xproto.MotionNotify, w.Window, le)
 		if _, ok := e.wls[xproto.MotionNotify][w.Window]; !ok {
 			eventsLog.Printf("listenMotionNotify: ucf: no MotionNotify event listeners for window %s\n", w)
@@ -304,14 +317,14 @@ func (e *Events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xpro
 	return ret
 }
 
-func (e *Events) registerEventListener(ev byte, l chan<- xgb.Event, init xgb.Event) {
+func (e *events) registerEventListener(ev byte, l chan<- xgb.Event, init xgb.Event) {
 	if _, ok := e.ols[ev]; !ok {
 		e.ols[ev] = map[chan<- xgb.Event]xgb.Event{}
 	}
 	e.ols[ev][l] = init
 }
 
-func (e *Events) unregisterEventListener(ev byte, l chan<- xgb.Event) {
+func (e *events) unregisterEventListener(ev byte, l chan<- xgb.Event) {
 	if l != nil {
 		close(l)
 		delete(e.ols[ev], l)
@@ -322,14 +335,14 @@ func (e *Events) unregisterEventListener(ev byte, l chan<- xgb.Event) {
 	}
 }
 
-func (e *Events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.MappingNotifyEvent {
+func (e *events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.MappingNotifyEvent {
 	le := make(chan xgb.Event)
 
-	rcf := eventsControlFunc(func(e *Events) {
+	rcf := eventsControlFunc(func(e *events) {
 		e.registerEventListener(xproto.MappingNotify, le, xproto.MappingNotifyEvent{})
 	})
 
-	ucf := eventsControlFunc(func(e *Events) {
+	ucf := eventsControlFunc(func(e *events) {
 		e.unregisterEventListener(xproto.MappingNotify, le)
 	})
 
@@ -397,83 +410,109 @@ func (e *Events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.Mapping
 	return ret
 }
 
-func (e *Events) listenCloseNotify(w *Window, stop <-chan struct{}) <-chan struct{} {
+func (e *events) listenWmDeleteWindow(w *Window, stop <-chan struct{}) <-chan struct{} {
 	eventChannel := make(chan xgb.Event)
 
-	registerControlFunction := eventsControlFunc(func(e *Events) {
-		e.registerEventListener(xproto.DestroyNotify, eventChannel, xproto.DestroyNotifyEvent{})
+	registerControlFunction := eventsControlFunc(func(e *events) {
+		e.registerEventListener(xproto.ClientMessage, eventChannel, xproto.ClientMessageEvent{})
 	})
 
-	unregisterControlFunction := eventsControlFunc(func(e *Events) {
-		e.unregisterEventListener(xproto.DestroyNotify, eventChannel)
+	unregisterControlFunction := eventsControlFunc(func(e *events) {
+		e.unregisterEventListener(xproto.ClientMessage, eventChannel)
 	})
 
 	e.run()
 
-	eventsLog.Printf("listenCloseNotify: trying to register DestroyNotify event listener %v\n", eventChannel)
+	eventsLog.Printf("listenWmDeleteWindow: trying to register ClientMessage event listener %v\n", eventChannel)
 	e.control <- registerControlFunction
-	eventsLog.Printf("listenCloseNotify: registered DestroyNotify event listener %v\n", eventChannel)
+	eventsLog.Printf("listenWmDeleteWindow: registered ClientMessage event listener %v\n", eventChannel)
 
 	ret := make(chan struct{})
 	//TODO who will wait for this function close on exit?
 	go func() {
 		defer close(ret)
 
-		eventsLog.Printf("\tlistenCloseNotify: go func(): start")
-		defer eventsLog.Printf("\tlistenCloseNotify: go func(): end")
+		eventsLog.Printf("\tlistenWmDeleteWindow: go func(): start")
+		defer eventsLog.Printf("\tlistenWmDeleteWindow: go func(): end")
 
 		unregisterFunction := func(control chan<- interface{}) {
-			eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction(): start")
-			defer eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction(): end")
+			eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction(): start")
+			defer eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction(): end")
 
 			for eventChannel != nil {
-				eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: for loop")
+				eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction: for loop")
 				select {
 				case _, ok := <-eventChannel:
-					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: select got event")
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction: select got event")
 					if !ok {
-						eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: event channel was closed")
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction: event channel was closed")
 						eventChannel = nil
 						break
 					}
-					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: wtf am i doing here?")
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction: wtf am i doing here?")
 
 				case control <- unregisterControlFunction:
-					eventsLog.Printf("\tlistenCloseNotify: go func: unregisterFunction: select unregisterControlFunction sent to control")
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: unregisterFunction: select unregisterControlFunction sent to control")
 					control = nil
 				}
 			}
 		}
 
 		for stop != nil {
-			eventsLog.Printf("\tlistenCloseNotify: go func: for loop")
+			eventsLog.Printf("\tlistenWmDeleteWindow: go func: for loop")
 			select {
 			case eventInterface, ok := <-eventChannel:
-				eventsLog.Printf("\tlistenCloseNotify: go func: select got event: %#v, %v", eventInterface, ok)
+				eventsLog.Printf("\tlistenWmDeleteWindow: go func: select got event: %#v, %v", eventInterface, ok)
 				if !ok {
-					eventsLog.Printf("\tlistenCloseNotify: go func: event channel was closed")
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: event channel was closed")
 					eventChannel = nil
 					break
 				}
 
 				switch event := eventInterface.(type) {
-				case xproto.DestroyNotifyEvent:
-					eventsLog.Printf("\tlistenCloseNotify: go func: got DestroyNotify event")
-					//TODO what to do?
+				case xproto.ClientMessageEvent:
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: got ClientMessageEvent event")
+					// check if event is an WM_DELETE_WINDOW message
+					if event.Format != 32 {
+						// unknown format, do nothing
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: ClientMessageEvent.Format=%d, want 32", event.Format)
+						break
+					}
+
+					if typeName, err := w.Screen().Display().atoms().GetById(event.Type); err != nil {
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: error getting atom name fo id %d: %v", event.Type, err)
+					} else if typeName != "WM_PROTOCOLS" {
+						// event type is not WM_PROTOCOLS
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: event.Type name is not WM_PROTOCOLS")
+						break
+					}
+
+					// event type is WM_PROTOCOLS, check first protocol name
+					protocolId := xproto.Atom(event.Data.Data32[0])
+					if protocolName, err := w.Screen().Display().atoms().GetById(protocolId); err != nil {
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: error getting atom name fo id %d: %v", protocolId, err)
+					} else if protocolName != "WM_DELETE_WINDOW" {
+						eventsLog.Printf("\tlistenWmDeleteWindow: go func: first protocol name is not WM_DELETE_WINDOW")
+						// first event protocol is not WM_DELETE_WINDOW
+						break
+					}
+
+					// event protocol is WM_DELETE_WINDOW, window is closing
+					//TODO maybe unregister all events for window for sure
 					defer unregisterFunction(e.control)
 					stop = nil
 				default:
-					eventsLog.Printf("\tlistenCloseNotify: go func: unknown event type: %T", event)
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: unknown event type: %T", event)
 				}
 
 			case _, ok := <-stop:
 				if !ok {
-					eventsLog.Printf("\tlistenCloseNotify: go func: stop channel closed")
+					eventsLog.Printf("\tlistenWmDeleteWindow: go func: stop channel closed")
 					defer unregisterFunction(e.control)
 					stop = nil
 					break
 				}
-				eventsLog.Printf("\tlistenCloseNotify: go func: wtf am i doing here? don't send anything to stop channel")
+				eventsLog.Printf("\tlistenWmDeleteWindow: go func: wtf am i doing here? don't send anything to stop channel")
 			}
 		}
 

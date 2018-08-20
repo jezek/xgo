@@ -1,5 +1,3 @@
-// Golang wrapper fo xdo
-// sudo apt install libxdo-dev to compile
 package xgo
 
 import (
@@ -20,4 +18,13 @@ func debugf(f string, a ...interface{}) {
 	if DEBUG {
 		log.Printf(f, a...)
 	}
+}
+
+type errWrap struct {
+	msg string
+	err error
+}
+
+func (e errWrap) Error() string {
+	return e.msg + ": " + e.err.Error()
 }

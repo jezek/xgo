@@ -92,7 +92,7 @@ func (p *Pointer) Status() (PointerStatus, error) {
 }
 
 func (p *Pointer) MotionNotify(stop <-chan struct{}) <-chan xproto.MotionNotifyEvent {
-	return p.Window().Screen().Display().Events().listenMotionNotify(p.Window(), stop)
+	return p.Window().Screen().Display().events().listenMotionNotify(p.Window(), stop)
 }
 
 func (p *Pointer) Control() *PointerControll {
