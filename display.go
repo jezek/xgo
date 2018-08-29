@@ -90,6 +90,7 @@ func (d *Display) CreateWindow() (*Window, error) {
 	screen := d.DefaultScreen()
 	parentWindow := screen.Root
 
+	//TODO some WMs dont care about coords, so handle position with respect to WM
 	if err := xproto.CreateWindowChecked(
 		d.Conn,
 		screen.RootDepth,

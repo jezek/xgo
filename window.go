@@ -1,7 +1,10 @@
 package xgo
 
 import (
+	"errors"
 	"fmt"
+	"image"
+	"image/color"
 	"io"
 	"io/ioutil"
 	"log"
@@ -291,6 +294,32 @@ func (w *Window) CloseNotify(stop <-chan struct{}) (<-chan struct{}, error) {
 	return w.Screen().Display().events().listenWmDeleteWindow(w, stop), nil
 }
 
+var errNilWindow error = errors.New("window is nil")
+
+// Makes a ConfigRequest, to alter position and size. Returns error if something is wrong
+func (w *Window) MoveResize(bounds image.Rectangle) error {
+	if w == nil {
+		return errWrap{"Window.MoveResize", errNilWindow}
+	}
+	//TODO if this is a top-level window in WM that supports EWMH, use WMMoveResize
+	if bounds.Dx() <= 0 || bounds.Dy() <= 0 {
+		return errors.New("Window.MoveResize: zero width or height " + bounds.String())
+	}
+
+	flags := uint16(xproto.ConfigWindowX | xproto.ConfigWindowY | xproto.ConfigWindowWidth | xproto.ConfigWindowHeight)
+	vals := []uint32{uint32(bounds.Min.X), uint32(bounds.Min.Y), uint32(bounds.Dx()), uint32(bounds.Dy())}
+	if err := xproto.ConfigureWindowChecked(
+		w.Screen().Display().Conn,
+		w.Window,
+		flags,
+		vals,
+	).Check(); err != nil {
+		return errWrap{"Window.MoveResize", fmt.Errorf("ConfigWindow request resulted with error: %v", err)}
+	}
+	//TODO cache size & position
+	return nil
+}
+
 func (w *Window) Destroy() error {
 	if w.Window != xproto.WindowNone {
 		//TODO deatach events
@@ -300,5 +329,20 @@ func (w *Window) Destroy() error {
 		}
 		w.Window = xproto.WindowNone
 	}
+	return nil
+}
+
+func (w *Window) BgColorChange(col color.Color) error {
+	//TODO convert color to uint32 color used by xlib
+	bgColor := uint32(0)
+	if err := xproto.ChangeWindowAttributesChecked(
+		w.Screen().Display().Conn,
+		w.Window,
+		xproto.CwBackPixel,
+		[]uint32{bgColor},
+	).Check(); err != nil {
+		return errWrap{"Window.BgColorChange", fmt.Errorf("ChangeWindowAttributes error: %v", err)}
+	}
+
 	return nil
 }
