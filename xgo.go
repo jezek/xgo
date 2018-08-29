@@ -5,6 +5,11 @@ import (
 	"os"
 )
 
+const (
+	SizeReqestMax                = (1 << 16) * 4
+	SizeRequestPutImageFixedPart = 24
+)
+
 var (
 	DEBUG bool = os.Getenv("XGO_DEBUG") != ""
 )

@@ -16,7 +16,8 @@ import (
 func main() {
 
 	// load image
-	imageFileName := "jez.jpg"
+	imageFileName := "pokeslon.jpg"
+	//imageFileName := "jez.jpg"
 	reader, err := os.Open(imageFileName)
 	if err != nil {
 		fmt.Printf("Unable to open \"%s\": %v\n", imageFileName, err)
@@ -129,24 +130,34 @@ func main() {
 	}
 	fmt.Println("gc created")
 
-	// draw our image stored in pixBGRA to pixmap (pid) using gc
-	if err := xproto.PutImageChecked(
-		d.Conn,
-		xproto.ImageFormatZPixmap,
-		xproto.Drawable(pid),
-		gc,
-		uint16(bounds.Dx()),
-		uint16(bounds.Dy()),
-		0,
-		0,
-		0,  // left padding
-		24, //TODO get from win. depth
-		pixBGRA,
-	).Check(); err != nil {
-		fmt.Printf("Unable to write image bgra pixels to pixmap: %v\n", err)
-		return
+	maxBytesToSend := xgo.SizeReqestMax - (xgo.SizeRequestPutImageFixedPart + 4)
+	maxAreaToSend := maxBytesToSend / 4
+	if maxAreaToSend*4 != maxBytesToSend {
+		fmt.Printf("maxAreaToSend(%d) * 4 (%d) != maxBytesToSend (%d)\n", maxAreaToSend, maxAreaToSend*4, maxBytesToSend)
+		maxBytesToSend = maxAreaToSend * 4
 	}
-	fmt.Printf("pixBGRA data inserted into drawable pixmap, using gc\n")
+	rectangles := decomposeToRectanglesWithAreaMax(bounds, maxAreaToSend)
+
+	for _, rectangle := range rectangles {
+		// draw our image stored in pixBGRA to pixmap (pid) using gc
+		if err := xproto.PutImageChecked(
+			d.Conn,
+			xproto.ImageFormatZPixmap,
+			xproto.Drawable(pid),
+			gc,
+			uint16(rectangle.Dx()),
+			uint16(rectangle.Dy()),
+			int16(rectangle.Min.X),
+			int16(rectangle.Min.Y),
+			0,  // left padding
+			24, //TODO get from win. depth
+			getRectangleBytes(rectangle, pixBGRA),
+		).Check(); err != nil {
+			fmt.Printf("Unable to write image bgra pixels to pixmap: %v\n", err)
+			return
+		}
+		fmt.Printf("pixBGRA data for image rectangle %v inserted into drawable pixmap, using gc\n", rectangle)
+	}
 
 	// to show what has been drawn, we need to switch/flush the buffer
 	if err := xproto.ClearAreaChecked(
@@ -173,4 +184,64 @@ func main() {
 	fmt.Println("<enter> to end")
 	fmt.Scanln()
 
+}
+
+func decomposeToRectanglesWithAreaMax(rect image.Rectangle, maxArea int) []image.Rectangle {
+	if rect.Dx()*rect.Dy() <= maxArea {
+		return []image.Rectangle{rect}
+	}
+	// area is greater than maxArea, so we are splitting
+	//TODO? optimize... but how? use cycles instead of recursion
+
+	// split verticaly, if deeded
+	if rect.Dx() > maxArea {
+		return append(
+			decomposeToRectanglesWithAreaMax(
+				image.Rect(
+					rect.Min.X, rect.Min.Y,
+					rect.Min.X+maxArea, rect.Max.Y,
+				),
+				maxArea,
+			),
+			decomposeToRectanglesWithAreaMax(
+				image.Rect(
+					rect.Min.X+maxArea, rect.Min.Y,
+					rect.Max.X, rect.Max.Y,
+				),
+				maxArea,
+			)...,
+		)
+	}
+	// rect.Dx() < maxArea
+	// split horizontaly by rows
+	maxRows := maxArea / rect.Dx()
+	return append(
+		[]image.Rectangle{
+			image.Rect(
+				rect.Min.X, rect.Min.Y,
+				rect.Max.X, rect.Min.Y+maxRows,
+			),
+		},
+		decomposeToRectanglesWithAreaMax(
+			image.Rect(
+				rect.Min.X, rect.Min.Y+maxRows,
+				rect.Max.X, rect.Max.Y,
+			),
+			maxArea,
+		)...,
+	)
+
+}
+
+func getRectangleBytes(rect image.Rectangle, quadrupletBytes []byte) []byte {
+	//fmt.Println("geting rextangle %v bytes\n", rect)
+	res := make([]byte, 0, rect.Dx()*rect.Dy()*4)
+	for y := rect.Min.Y; y < rect.Max.Y; y++ {
+		for x := rect.Min.X; x < rect.Max.X; x++ {
+			pos := (rect.Dx() * y * 4) + x*4
+			//fmt.Println("pos for x: %d, y: %d is %d\n", x, y, pos)
+			res = append(res, quadrupletBytes[pos:pos+4]...)
+		}
+	}
+	return res
 }
