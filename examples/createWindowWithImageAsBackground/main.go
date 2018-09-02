@@ -8,6 +8,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
+	"os/signal"
 	"xgo"
 
 	"github.com/jezek/xgb/xproto"
@@ -47,6 +48,7 @@ func main() {
 		return
 	}
 	fmt.Printf("Window created: %#v\n", w)
+	defer w.Destroy()
 
 	// change window size & background color & center
 	screenBounds := image.Rect(0, 0, int(w.Screen().WidthInPixels), int(w.Screen().HeightInPixels))
@@ -81,7 +83,7 @@ func main() {
 	fmt.Println("image converted to BGRA bytes", pixBGRA[:60], "...")
 	// allocate new pixmap in x
 	// first get new pixmap id
-	pid, err := xproto.NewPixmapId(d.Conn)
+	pixmapId, err := xproto.NewPixmapId(d.Conn)
 	if err != nil {
 		fmt.Printf("Unable to create pixmap id: %v\n", err)
 		return
@@ -90,7 +92,7 @@ func main() {
 	if err := xproto.CreatePixmapChecked(
 		d.Conn,
 		w.Screen().RootDepth,
-		pid,
+		pixmapId,
 		xproto.Drawable(w.Screen().Root),
 		uint16(bounds.Dx()),
 		uint16(bounds.Dy()),
@@ -100,64 +102,147 @@ func main() {
 	}
 	fmt.Println("pixmap created")
 
+	{ // draw our image to pixmap
+		// create and allocate graphical content
+		gc, err := xproto.NewGcontextId(d.Conn)
+		if err != nil {
+			fmt.Printf("Unable to allocate graphic context id: %v\n", err)
+			return
+		}
+		if err := xproto.CreateGCChecked(
+			d.Conn,
+			gc,
+			xproto.Drawable(w.Screen().Root),
+			xproto.GcForeground,
+			[]uint32{w.Screen().WhitePixel},
+		).Check(); err != nil {
+			fmt.Printf("Unable to create graphic context: %v\n", err)
+			return
+		}
+		fmt.Println("gc created")
+
+		maxBytesToSend := xgo.SizeReqestMax - (xgo.SizeRequestPutImageFixedPart + 4)
+		maxAreaToSend := maxBytesToSend / 4
+		if maxAreaToSend*4 != maxBytesToSend {
+			fmt.Printf("maxAreaToSend(%d) * 4 (%d) != maxBytesToSend (%d)\n", maxAreaToSend, maxAreaToSend*4, maxBytesToSend)
+			maxBytesToSend = maxAreaToSend * 4
+		}
+		rectangles := decomposeToRectanglesWithAreaMax(bounds, maxAreaToSend)
+
+		for _, rectangle := range rectangles {
+			// draw our image stored in pixBGRA to pixmap (pid) using gc
+			if err := xproto.PutImageChecked(
+				d.Conn,
+				xproto.ImageFormatZPixmap,
+				xproto.Drawable(pixmapId),
+				gc,
+				uint16(rectangle.Dx()),
+				uint16(rectangle.Dy()),
+				int16(rectangle.Min.X),
+				int16(rectangle.Min.Y),
+				0,  // left padding
+				24, //TODO get from win. depth
+				getRectangleBytes(rectangle, pixBGRA),
+			).Check(); err != nil {
+				fmt.Printf("Unable to write image bgra pixels to pixmap: %v\n", err)
+				return
+			}
+			fmt.Printf("pixBGRA data for image rectangle %v inserted into drawable pixmap, using gc\n", rectangle)
+		}
+	}
+
+	// load font from x11 and draw text to our pixmap
+	//if fonts, err := xproto.ListFonts(d.Conn, 2, 6, "*mono*").Reply(); err != nil {
+	//	fmt.Println("List fonts error:", err)
+	//	return
+	//} else {
+	//	fmt.Printf("fonts: %#v\n", fonts)
+	//}
+
+	//TODO not working, just waiting for something
+	//if fonts, err := xproto.ListFontsWithInfo(d.Conn, 1, 6, "*mono*").Reply(); err != nil {
+	//	fmt.Println("List fonts with info error:", err)
+	//	return
+	//} else {
+	//	fmt.Printf("fonts with info: %#v\n", fonts)
+	//}
+
+	{ // draw something to pixmap
+
+		if fp, err := xproto.GetFontPath(d.Conn).Reply(); err != nil {
+			fmt.Println("unable to GetFontPath:", err)
+			return
+		} else {
+			fmt.Printf("GetFontPath reply: %#v\n", fp)
+		}
+		// create and allocate graphical content for text write
+		gc, err := xproto.NewGcontextId(d.Conn)
+		if err != nil {
+			fmt.Printf("Unable to allocate graphic context id for text write: %v\n", err)
+			return
+		}
+		if err := xproto.CreateGCChecked(
+			d.Conn,
+			gc,
+			xproto.Drawable(w.Screen().Root),
+			xproto.GcForeground|xproto.GcBackground,
+			[]uint32{w.Screen().WhitePixel, w.Screen().BlackPixel},
+		).Check(); err != nil {
+			fmt.Printf("Unable to create graphic context for text write: %v\n", err)
+			return
+		}
+		fmt.Println("gc for text write created")
+
+		//TODO get font id, open font name to id, use foont id, close font id
+		if fry, err := xproto.QueryFont(
+			d.Conn,
+			xproto.Fontable(gc),
+		).Reply(); err != nil {
+			fmt.Println("unable to query for font:", err)
+			return
+		} else {
+			fmt.Printf("Font reply: %#v\n", fry.FontAscent)
+		}
+
+		if err := xproto.ImageText8Checked(
+			d.Conn,
+			4,
+			xproto.Drawable(pixmapId),
+			gc,
+			0,
+			10,
+			"test",
+		).Check(); err != nil {
+			fmt.Printf("Unable to write text to pixmap: %v\n", err)
+			return
+		}
+		fmt.Println("Wrote some text to pixmap")
+
+		if err := xproto.PolyLineChecked(
+			d.Conn,
+			xproto.CoordModeOrigin,
+			xproto.Drawable(pixmapId),
+			gc,
+			[]xproto.Point{xproto.Point{0, 0}, xproto.Point{100, 100}, xproto.Point{0, 100}},
+		).Check(); err != nil {
+			fmt.Printf("Unable draw line: %v\n", err)
+			return
+		}
+		fmt.Println("line draw")
+
+	}
+
 	//tell the window, to use our pixmap as background
 	if err := xproto.ChangeWindowAttributesChecked(
 		w.Screen().Display().Conn,
 		w.Window,
 		xproto.CwBackPixmap,
-		[]uint32{uint32(pid)},
+		[]uint32{uint32(pixmapId)},
 	).Check(); err != nil {
 		fmt.Printf("Unable to change window attribute to use pixmap as background: %v\n", err)
 		return
 	}
 	fmt.Printf("Window attribute to have pixmap as background changed\n")
-
-	// create and allocate graphical content
-	gc, err := xproto.NewGcontextId(d.Conn)
-	if err != nil {
-		fmt.Printf("Unable to allocate graphic context id: %v\n", err)
-		return
-	}
-	if err := xproto.CreateGCChecked(
-		d.Conn,
-		gc,
-		xproto.Drawable(w.Screen().Root),
-		xproto.GcForeground,
-		[]uint32{w.Screen().WhitePixel},
-	).Check(); err != nil {
-		fmt.Printf("Unable to create graphic context: %v\n", err)
-		return
-	}
-	fmt.Println("gc created")
-
-	maxBytesToSend := xgo.SizeReqestMax - (xgo.SizeRequestPutImageFixedPart + 4)
-	maxAreaToSend := maxBytesToSend / 4
-	if maxAreaToSend*4 != maxBytesToSend {
-		fmt.Printf("maxAreaToSend(%d) * 4 (%d) != maxBytesToSend (%d)\n", maxAreaToSend, maxAreaToSend*4, maxBytesToSend)
-		maxBytesToSend = maxAreaToSend * 4
-	}
-	rectangles := decomposeToRectanglesWithAreaMax(bounds, maxAreaToSend)
-
-	for _, rectangle := range rectangles {
-		// draw our image stored in pixBGRA to pixmap (pid) using gc
-		if err := xproto.PutImageChecked(
-			d.Conn,
-			xproto.ImageFormatZPixmap,
-			xproto.Drawable(pid),
-			gc,
-			uint16(rectangle.Dx()),
-			uint16(rectangle.Dy()),
-			int16(rectangle.Min.X),
-			int16(rectangle.Min.Y),
-			0,  // left padding
-			24, //TODO get from win. depth
-			getRectangleBytes(rectangle, pixBGRA),
-		).Check(); err != nil {
-			fmt.Printf("Unable to write image bgra pixels to pixmap: %v\n", err)
-			return
-		}
-		fmt.Printf("pixBGRA data for image rectangle %v inserted into drawable pixmap, using gc\n", rectangle)
-	}
 
 	// to show what has been drawn, we need to switch/flush the buffer
 	if err := xproto.ClearAreaChecked(
@@ -176,13 +261,25 @@ func main() {
 		return
 	}
 	fmt.Println("Window mapped")
-	//Note:
-	//if window is closed, so the connection is, and so the current program.
-	//TODO examine the panic error produced: panic: close of closed channel
-	//I have red, that this happens only on well behaved window managers
-	//see createAndHandleWindow example for window close handling
-	fmt.Println("<enter> to end")
-	fmt.Scanln()
+
+	//TODO? do some helper funcion for this
+	// siplified wait for window close request or interupt signal notify
+	signalNotify := make(chan os.Signal, 1)
+	signal.Notify(signalNotify, os.Interrupt, os.Kill)
+
+	stopCloseNotify := make(chan struct{})
+	closeRequest, err := w.CloseNotify(stopCloseNotify)
+	if err != nil {
+		fmt.Printf("Unable to monitor window for close notify due to error: %v\n", err)
+		//TODO an example, how to use xgo.Display.Conn.WaitForEvent() if xgo.Window.CloseNotify returns error
+		return
+	}
+	defer close(stopCloseNotify)
+
+	select {
+	case <-signalNotify:
+	case <-closeRequest:
+	}
 
 }
 
