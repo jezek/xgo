@@ -259,6 +259,13 @@ func (d *Display) atoms() *atoms {
 	d.mx.Unlock()
 	return d.a
 }
+func (d *Display) Atom(aid xproto.Atom) string {
+	str, err := d.atoms().GetById(aid)
+	if err != nil {
+		return ""
+	}
+	return str
+}
 
 // Setup instance
 type Setup struct {
