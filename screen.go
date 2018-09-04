@@ -1,6 +1,8 @@
 package xgo
 
 import (
+	"fmt"
+	"image"
 	"log"
 
 	"github.com/jezek/xgb/xproto"
@@ -38,4 +40,31 @@ func (s *Screen) Window() *Window {
 		}
 	}
 	return s.w
+}
+
+// Allocate new pixmap in X on screen, with screen default depth
+func (s *Screen) NewPixmap(size image.Point) (*Pixmap, error) {
+	// first get new pixmap id
+	pixmapId, err := xproto.NewPixmapId(s.Display().Conn)
+	if err != nil {
+		return nil, errWrap{"Screen.NewPixmap", fmt.Errorf("unable to obtain pixmap id: %v", err)}
+	}
+	// then send create request for pixmap
+	if err := xproto.CreatePixmapChecked(
+		s.Display().Conn,
+		s.RootDepth,
+		pixmapId,
+		xproto.Drawable(s.Root),
+		uint16(size.X),
+		uint16(size.Y),
+	).Check(); err != nil {
+		return nil, errWrap{"Screen.NewPixmap", fmt.Errorf("unable to create pixmap: %v\n", err)}
+
+	}
+	return &Pixmap{
+		pixmapId,
+		s,
+		size,
+		s.RootDepth,
+	}, nil
 }

@@ -332,17 +332,61 @@ func (w *Window) Destroy() error {
 	return nil
 }
 
-func (w *Window) BgColorChange(col color.Color) error {
-	//TODO convert color to uint32 color used by xlib
-	bgColor := uint32(0)
+type WindowAttributer func() (uint32, uint32)
+
+func BackgroundPixelColor(col color.Color) WindowAttributer {
+	r, g, b, _ := col.RGBA()
+	return func() (uint32, uint32) {
+		return xproto.CwBackPixel, uint32(r>>8)<<16 + uint32(g>>8)<<8 + uint32(b>>8)
+	}
+}
+func BackgroundPixmap(pixmapId xproto.Pixmap) WindowAttributer {
+	return func() (uint32, uint32) {
+		return xproto.CwBackPixmap, uint32(pixmapId)
+	}
+}
+
+func (w *Window) AttributesChange(attributes ...WindowAttributer) error {
+	//TODO a bug, this does not work
+	// w.AttributesChange(
+	// 	xgo.BackgroundPixelColor(color.RGBA{}),
+	// 	xgo.BackgroundPixmap(pixmap.Pixmap),
+	// )
+	// cause there has to be order in values (pixmap goes first)
+
+	mask := uint32(0)
+	values := make([]uint32, 0) //, len(attributes))
+
+	for _, attribute := range attributes {
+		am, av := attribute()
+		if mask|am == mask {
+			return errWrap{"Window.AttributesChange", fmt.Errorf("duplicate attrbute: %#v", attribute)}
+		}
+		mask = mask | am
+		values = append(values, av)
+	}
+	if mask == 0 {
+		return nil
+	}
 	if err := xproto.ChangeWindowAttributesChecked(
 		w.Screen().Display().Conn,
 		w.Window,
-		xproto.CwBackPixel,
-		[]uint32{bgColor},
+		mask,
+		values,
 	).Check(); err != nil {
-		return errWrap{"Window.BgColorChange", fmt.Errorf("ChangeWindowAttributes error: %v", err)}
+		return errWrap{"Window.AttributesChange", fmt.Errorf("ChangeWindowAttributes error: %v", err)}
 	}
-
 	return nil
+}
+
+// Paints a rectangular area in the window with the window's background pixel or pixmap.
+// If the window has a defined background tile, the rectangle clipped by any children is filled with this tile.
+// If the window has background None, the contents of the window are not changed.
+func (w *Window) Clear() error {
+	return xproto.ClearAreaChecked(
+		w.Screen().Display().Conn,
+		false,
+		w.Window,
+		0, 0, 0, 0,
+	).Check()
 }
