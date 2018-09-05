@@ -17,7 +17,7 @@ func main() {
 	fmt.Printf("Display opened: %#v\n", d)
 	//TODO how to detect closed display?
 
-	w, err := d.CreateWindow()
+	w, err := d.NewWindow()
 	if err != nil {
 		fmt.Println(err)
 		return

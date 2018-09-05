@@ -320,6 +320,29 @@ func (w *Window) MoveResize(bounds image.Rectangle) error {
 	return nil
 }
 
+// Makes a ConfigRequest, to alter size. Returns error if something is wrong
+func (w *Window) Resize(size image.Point) error {
+	if w == nil {
+		return errWrap{"Window.Resize", errNilWindow}
+	}
+	if size.X <= 0 || size.Y <= 0 {
+		return errors.New("Window.Resize: zero width or height " + size.String())
+	}
+
+	flags := uint16(xproto.ConfigWindowWidth | xproto.ConfigWindowHeight)
+	vals := []uint32{uint32(size.X), uint32(size.Y)}
+	if err := xproto.ConfigureWindowChecked(
+		w.Screen().Display().Conn,
+		w.Window,
+		flags,
+		vals,
+	).Check(); err != nil {
+		return errWrap{"Window.Resize", fmt.Errorf("ConfigWindow request resulted with error: %v", err)}
+	}
+	//TODO cache size
+	return nil
+}
+
 func (w *Window) Destroy() error {
 	if w.Window != xproto.WindowNone {
 		//TODO deatach events
@@ -389,4 +412,70 @@ func (w *Window) Clear() error {
 		w.Window,
 		0, 0, 0, 0,
 	).Check()
+}
+
+type WindowOperation func(*Window) error
+type WindowOperations struct{}
+
+func (_ WindowOperations) Size(size image.Point) WindowOperation {
+	return func(w *Window) error {
+		return w.Resize(size)
+	}
+}
+func (_ WindowOperations) Attributes(attributes ...WindowAttributer) WindowOperation {
+	return func(w *Window) error {
+		return w.AttributesChange(attributes...)
+	}
+}
+func (_ WindowOperations) Clear() WindowOperation {
+	return func(w *Window) error {
+		return w.Clear()
+	}
+}
+func (_ WindowOperations) Map() WindowOperation {
+	return func(w *Window) error {
+		return w.Map()
+	}
+}
+
+// Creates an unmapped input/output window on default screen with no initialization.
+// Window size is [1,1], position is [0,0], border 0, with screen root depth and none (default?) attributes.
+// Then applies all window operations
+// If there is an error along somewhere, window is destroyed and the first occuring error is returned
+func NewWindowOnScreen(s *Screen, operations ...WindowOperation) (*Window, error) {
+	//TODO check if screen is a valid screen
+	wid, err := xproto.NewWindowId(s.Display().Conn)
+	if err != nil {
+		return nil, err
+	}
+
+	parentWindow := s.Root
+
+	//TODO some WMs dont care about coords, so handle position with respect to WM
+	if err := xproto.CreateWindowChecked(
+		s.Display().Conn,
+		s.RootDepth,
+		wid,
+		parentWindow,
+		0, 0, //x, y
+		1, 1, //width, height
+		0, //border width
+		xproto.WindowClassInputOutput, //window class
+		s.RootVisual,                  //VisualId
+		0,                             //window attributes mask
+		[]uint32{},                    //window attributes to set for masks
+	).Check(); err != nil {
+		return nil, err
+	}
+
+	//TODO remember created windows and hadle them on display close
+	w := &Window{wid, s, nil, nil}
+
+	for i, operation := range operations {
+		if err := operation(w); err != nil {
+			w.Destroy()
+			return nil, errWrap{"NewWindowOnScreen", fmt.Errorf("operation no %d error: %v", i, err)}
+		}
+	}
+	return w, nil
 }

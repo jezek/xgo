@@ -13,7 +13,7 @@ func main() {
 	}
 	fmt.Printf("Display opened: %#v\n", d)
 
-	w, err := d.CreateWindow()
+	w, err := d.NewWindow()
 	if err != nil {
 		fmt.Println(err)
 		return

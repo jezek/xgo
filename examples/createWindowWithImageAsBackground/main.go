@@ -28,7 +28,6 @@ func main() {
 		return
 	}
 	fmt.Printf("Loaded image \"%s\" as an %dx%d %s format\n", imageFileName, img.Bounds().Dx(), img.Bounds().Dy(), format)
-	imageBounds := img.Bounds()
 
 	// open display of x11
 	d, err := xgo.OpenDisplay("")
@@ -38,17 +37,11 @@ func main() {
 	}
 	fmt.Printf("Display opened: %#v\n", d)
 
-	// create window
-	w, err := d.CreateWindow()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Printf("Window created: %#v\n", w)
-	defer w.Destroy()
+	screen := d.DefaultScreen()
 
 	// get screen bounds
-	screenBounds := image.Rect(0, 0, int(w.Screen().WidthInPixels), int(w.Screen().HeightInPixels))
+	screenBounds := image.Rect(0, 0, int(screen.WidthInPixels), int(screen.HeightInPixels))
+	imageBounds := img.Bounds()
 	//TODO? is it ok, to get the screen bounds? exists there a methot, that can rovide us with max window size?
 	// get window size
 	winBounds := screenBounds.Intersect(imageBounds)
@@ -65,19 +58,12 @@ func main() {
 		(screenBounds.Dy()-winBounds.Dy())/2,
 	))
 
-	// move & resize window to desired position
-	if err := w.MoveResize(winBounds); err != nil {
-		fmt.Printf("Error moving & resizing window: %v\n", err)
-		return
-	}
-	fmt.Println("Window moved and resized to", winBounds)
-
-	pixmap, err := w.Screen().NewPixmap(image.Pt(imageBounds.Dx(), imageBounds.Dy()))
+	pixmap, err := screen.NewPixmap(image.Pt(imageBounds.Dx(), imageBounds.Dy()))
 	if err != nil {
 		fmt.Printf("Unable to create pixmap: %v\n", err)
 		return
 	}
-	fmt.Println("Pixmap created: %v\n", pixmap)
+	fmt.Printf("Pixmap created: %v\n", pixmap)
 
 	defer func() {
 		if err := pixmap.Destroy(); err != nil {
@@ -92,31 +78,27 @@ func main() {
 		return
 	}
 
-	//TODO? Set WM_STATE so it is interpreted as a top-level window.
-	//TODO? Set WM_NORMAL_HINTS so the window can't be resized.
-	//TODO? Set _NET_WM_NAME so it looks nice.
-
-	//tell the window, to use our pixmap as background
-	if err := w.AttributesChange(
-		xgo.BackgroundPixmap(pixmap.Pixmap),
-	); err != nil {
-		fmt.Printf("Error changing window bg pixmap: %v\n", err)
+	// create window
+	w, err := screen.NewWindow(
+		xgo.WindowOperations{}.Size(image.Pt(winBounds.Dx(), winBounds.Dy())),
+		xgo.WindowOperations{}.Attributes(
+			xgo.BackgroundPixmap(pixmap.Pixmap),
+		),
+		xgo.WindowOperations{}.Clear(),
+		xgo.WindowOperations{}.Map(),
+	)
+	if err != nil {
+		fmt.Printf("Default screen window creation error: %v\n", err)
 		return
 	}
-	fmt.Printf("Window attributes to have pixmap as background changed\n")
-
-	// to show what has been drawn, we need to switch/flush the buffer
-	if err := w.Clear(); err != nil {
-		fmt.Printf("Unable to clear window: %v\n", err)
-		return
-	}
-	fmt.Printf("window cleared\n")
-
-	if err := w.Map(); err != nil {
-		fmt.Println(err)
-		return
-	}
-	fmt.Println("Window mapped")
+	fmt.Printf("Window created: %#v\n", w)
+	defer func() {
+		if err := w.Destroy(); err != nil {
+			fmt.Printf("Window destroy error: %v\n", err)
+			return
+		}
+		fmt.Printf("Window destroyed: %v\n", w)
+	}()
 
 	//TODO? do some helper funcion for this
 	// siplified wait for window close request or interupt signal notify

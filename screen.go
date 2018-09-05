@@ -42,6 +42,10 @@ func (s *Screen) Window() *Window {
 	return s.w
 }
 
+func (s *Screen) NewWindow(operations ...WindowOperation) (*Window, error) {
+	return NewWindowOnScreen(s, operations...)
+}
+
 // Allocate new pixmap in X on screen, with screen default depth
 func (s *Screen) NewPixmap(size image.Point) (*Pixmap, error) {
 	// first get new pixmap id
