@@ -58,13 +58,12 @@ func main() {
 		(screenBounds.Dy()-winBounds.Dy())/2,
 	))
 
-	pixmap, err := screen.NewPixmap(image.Pt(imageBounds.Dx(), imageBounds.Dy()))
+	pixmap, err := screen.NewPixmapFromImage(img)
 	if err != nil {
-		fmt.Printf("Unable to create pixmap: %v\n", err)
+		fmt.Printf("Unable to create pixmap from image: %v\n", err)
 		return
 	}
 	fmt.Printf("Pixmap created: %v\n", pixmap)
-
 	defer func() {
 		if err := pixmap.Destroy(); err != nil {
 			fmt.Printf("Freeing pixmap error: %v\n", err)
@@ -73,16 +72,11 @@ func main() {
 		fmt.Printf("Pixmap destroyed: %v\n", pixmap)
 	}()
 
-	if err := pixmap.DrawImage(img); err != nil {
-		fmt.Printf("Error drawing image to pixmap: %v\n", err)
-		return
-	}
-
 	// create window
 	w, err := screen.NewWindow(
 		xgo.WindowOperations{}.Size(image.Pt(winBounds.Dx(), winBounds.Dy())),
 		xgo.WindowOperations{}.Attributes(
-			xgo.BackgroundPixmap(pixmap.Pixmap),
+			xgo.WindowAttributes{}.BackgroundPixmap(pixmap),
 		),
 		xgo.WindowOperations{}.Clear(),
 		xgo.WindowOperations{}.Map(),

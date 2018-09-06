@@ -212,7 +212,7 @@ func (e *events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xpro
 	le := make(chan xgb.Event)
 
 	rcf := eventsControlFunc(func(e *events) {
-		a, err := w.Attributes()
+		a, err := w.AttributesInfo()
 		if err != nil {
 			eventsLog.Printf("listenMotionNotify: rcf: can't get window %s attributes due to error: %s", w, err)
 			close(le)
@@ -237,7 +237,7 @@ func (e *events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xpro
 		e.unregisterEventWindowListener(xproto.MotionNotify, w.Window, le)
 		if _, ok := e.wls[xproto.MotionNotify][w.Window]; !ok {
 			eventsLog.Printf("listenMotionNotify: ucf: no MotionNotify event listeners for window %s\n", w)
-			a, err := w.Attributes()
+			a, err := w.AttributesInfo()
 			if err != nil {
 				eventsLog.Printf("listenMotionNotify: ucf: can't get window %s attributes due to error: %s", w, err)
 			}

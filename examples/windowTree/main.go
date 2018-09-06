@@ -35,7 +35,7 @@ func printWithCildren(w *xgo.Window, depth int) {
 		if depth > 0 {
 			fmt.Print("|- ")
 		}
-		a, _ := w.Attributes()
+		a, _ := w.AttributesInfo()
 		fmt.Printf("%s - \"%s\" dnpem: %b\n", w, w.Name(), a.GetWindowAttributesReply.DoNotPropagateMask)
 		//fmt.Printf("%[1]*s %#v\n", depth*2, "", a.GetWindowAttributesReply.DoNotPropagateMask)
 	}

@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
@@ -111,22 +112,22 @@ func (w *Window) String() string {
 	return fmt.Sprintf("wid:%d", w.Window)
 }
 
-type WindowAttributes struct {
+type WindowAttributesInfo struct {
 	*xproto.GetWindowAttributesReply
 	w *Window
 }
 
-func (w *Window) Attributes() (*WindowAttributes, error) {
+func (w *Window) AttributesInfo() (*WindowAttributesInfo, error) {
 	reply, err := xproto.GetWindowAttributes(w.s.d.Conn, w.Window).Reply()
 	windowLog.Printf("Window %s atrributes reply %v, %v", w, reply, err)
 	if err != nil {
 		return nil, err
 	}
-	return &WindowAttributes{reply, w}, nil
+	return &WindowAttributesInfo{reply, w}, nil
 }
 
 func (w *Window) IsVisible() bool {
-	ret, err := w.Attributes()
+	ret, err := w.AttributesInfo()
 	if err != nil {
 		log.Printf("Can't obtain attributes for window %s due to error: %s", w, err)
 		return false
@@ -355,27 +356,19 @@ func (w *Window) Destroy() error {
 	return nil
 }
 
-type WindowAttributer func() (uint32, uint32)
-
-func BackgroundPixelColor(col color.Color) WindowAttributer {
-	r, g, b, _ := col.RGBA()
-	return func() (uint32, uint32) {
-		return xproto.CwBackPixel, uint32(r>>8)<<16 + uint32(g>>8)<<8 + uint32(b>>8)
-	}
-}
-func BackgroundPixmap(pixmapId xproto.Pixmap) WindowAttributer {
-	return func() (uint32, uint32) {
-		return xproto.CwBackPixmap, uint32(pixmapId)
-	}
-}
-
-func (w *Window) AttributesChange(attributes ...WindowAttributer) error {
-	//TODO a bug, this does not work
-	// w.AttributesChange(
-	// 	xgo.BackgroundPixelColor(color.RGBA{}),
-	// 	xgo.BackgroundPixmap(pixmap.Pixmap),
-	// )
-	// cause there has to be order in values (pixmap goes first)
+// Applies attributes to window. If duplicate attributes provided, error is produced.
+// The attributes are not applied in provided order and are allways sorted by mask of the attribute.
+// eg. if you use BackgroundPixelColor and BackgroundPixmap, it will not show the pixmap on background,
+// because mask for BackgroundPixelColor has greater value than BackgroundPixmap and will com after. So every time the last background operation is BackgroundPixelColor.
+// See WindowAttributes struct and underlying xproto.Cw... costants for mask value info
+// TODO? or should I return error if background is set twice, or any other alike situations?
+func (w *Window) AttributesChange(attributes ...WindowAttribute) error {
+	// sort attributes by mask ascending
+	sort.Slice(attributes, func(i, j int) bool {
+		im, _ := attributes[i]()
+		jm, _ := attributes[j]()
+		return im < jm
+	})
 
 	mask := uint32(0)
 	values := make([]uint32, 0) //, len(attributes))
@@ -414,33 +407,9 @@ func (w *Window) Clear() error {
 	).Check()
 }
 
-type WindowOperation func(*Window) error
-type WindowOperations struct{}
-
-func (_ WindowOperations) Size(size image.Point) WindowOperation {
-	return func(w *Window) error {
-		return w.Resize(size)
-	}
-}
-func (_ WindowOperations) Attributes(attributes ...WindowAttributer) WindowOperation {
-	return func(w *Window) error {
-		return w.AttributesChange(attributes...)
-	}
-}
-func (_ WindowOperations) Clear() WindowOperation {
-	return func(w *Window) error {
-		return w.Clear()
-	}
-}
-func (_ WindowOperations) Map() WindowOperation {
-	return func(w *Window) error {
-		return w.Map()
-	}
-}
-
 // Creates an unmapped input/output window on default screen with no initialization.
 // Window size is [1,1], position is [0,0], border 0, with screen root depth and none (default?) attributes.
-// Then applies all window operations
+// Then applies all window operations.
 // If there is an error along somewhere, window is destroyed and the first occuring error is returned
 func NewWindowOnScreen(s *Screen, operations ...WindowOperation) (*Window, error) {
 	//TODO check if screen is a valid screen
@@ -478,4 +447,47 @@ func NewWindowOnScreen(s *Screen, operations ...WindowOperation) (*Window, error
 		}
 	}
 	return w, nil
+}
+
+type WindowOperation func(*Window) error
+type WindowOperations struct{}
+
+//TODO ConfigWindowX, ConfigWindowY, ConfigWindowBorderWidth, ConfigWindowSibling, ConfigWindowStackMode,
+func (_ WindowOperations) Size(size image.Point) WindowOperation {
+	return func(w *Window) error {
+		return w.Resize(size)
+	}
+}
+
+func (_ WindowOperations) Attributes(attributes ...WindowAttribute) WindowOperation {
+	return func(w *Window) error {
+		return w.AttributesChange(attributes...)
+	}
+}
+func (_ WindowOperations) Clear() WindowOperation {
+	return func(w *Window) error {
+		return w.Clear()
+	}
+}
+func (_ WindowOperations) Map() WindowOperation {
+	return func(w *Window) error {
+		return w.Map()
+	}
+}
+
+type WindowAttribute func() (mask uint32, value uint32)
+
+type WindowAttributes struct{}
+
+//TODO CwBorderPixmap, CwBorderPixel, CwBitGravity, CwWinGravity, CwBackingStore, CwBackingPlanes, CwBackingPixel, CwOverrideRedirect , CwSaveUnder, CwEventMask, CwDontPropagate, CwColormap, CwCursor
+func (_ WindowAttributes) BackgroundPixelColor(col color.Color) WindowAttribute {
+	r, g, b, _ := col.RGBA()
+	return func() (uint32, uint32) {
+		return xproto.CwBackPixel, uint32(r>>8)<<16 + uint32(g>>8)<<8 + uint32(b>>8)
+	}
+}
+func (_ WindowAttributes) BackgroundPixmap(pixmap *Pixmap) WindowAttribute {
+	return func() (uint32, uint32) {
+		return xproto.CwBackPixmap, uint32(pixmap.Pixmap)
+	}
 }
