@@ -16,6 +16,7 @@ func main() {
 		return
 	}
 
+	//TODO listen in my own created window
 	fmt.Println("Display name:", d.Name())
 	fmt.Println("Number of screens:", d.NumberOfScreens())
 	fmt.Println("Number of desktops:", d.NumberOfDesktops())
@@ -31,7 +32,7 @@ func main() {
 	a := d.ActiveWindow()
 	ws, err := a.Pointer().Status()
 	if err != nil {
-		fmt.Println("Can't obtain mouse status for window %s due to error:", a, err)
+		fmt.Printf("Can't obtain mouse status for window %s due to error: %v\n", a, err)
 	}
 	fmt.Println(s)
 	fmt.Println(ws)

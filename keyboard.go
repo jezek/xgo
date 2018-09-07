@@ -288,7 +288,7 @@ func (c *KeyboardControll) keySymInput(ks xproto.Keysym, up bool) error {
 
 	//no keycode, need to do temporary mapping
 	if key.Symbols == nil {
-		return fmt.Errorf("keysym \"%s\" not mapped to first two keysyms of keycodes", ks)
+		return fmt.Errorf("keysym \"%x\" not mapped to first two keysyms of keycodes", ks)
 	}
 
 	//TODO? make work for all mapped modifiers

@@ -303,7 +303,7 @@ func (e *events) listenMotionNotify(w *Window, stop <-chan struct{}) <-chan xpro
 						}
 					}
 				default:
-					eventsLog.Fatal("listenMotionNotify: translator %v: BUG: expecting only MotionNotifyEvent", le)
+					eventsLog.Fatalf("listenMotionNotify: translator %v: BUG: expecting only MotionNotifyEvent", le)
 				}
 			case _, ok := <-stop:
 				if !ok {
@@ -396,7 +396,7 @@ func (e *events) listenMappingNotify(stop <-chan struct{}) <-chan xproto.Mapping
 						}
 					}
 				default:
-					eventsLog.Fatal("listenMappingNotify: translator %v: BUG: Expecting only MappingNotifyEvent", le)
+					eventsLog.Fatalf("listenMappingNotify: translator %v: BUG: Expecting only MappingNotifyEvent", le)
 				}
 			case _, ok := <-stop:
 				if !ok {

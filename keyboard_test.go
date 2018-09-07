@@ -16,17 +16,16 @@ func TestKeyActionsFromString(t *testing.T) {
 		{
 			"a",
 			[]keyAction{
-				keySymDown{'a'},
-				keySymUp{'a'},
+				keySymStroke{'a'},
 			}, nil,
 		},
 		{
 			"a&b\u0061",
 			[]keyAction{
-				keySymDown{'a'}, keySymUp{'a'},
-				keySymDown{'&'}, keySymUp{'&'},
-				keySymDown{'b'}, keySymUp{'b'},
-				keySymDown{0x0061}, keySymUp{'a'},
+				keySymStroke{'a'},
+				keySymStroke{'&'},
+				keySymStroke{'b'},
+				keySymStroke{0x0061},
 			}, nil,
 		},
 		{
@@ -40,8 +39,7 @@ func TestKeyActionsFromString(t *testing.T) {
 		{
 			"%%",
 			[]keyAction{
-				keySymDown{'%'},
-				keySymUp{'%'},
+				keySymStroke{'%'},
 			}, nil,
 		},
 		{
@@ -53,13 +51,13 @@ func TestKeyActionsFromString(t *testing.T) {
 		{
 			"%-a",
 			[]keyAction{
-				keySymDown{0x0061},
+				keySymUp{0x0061},
 			}, nil,
 		},
 		{
 			"%\"a\"",
 			[]keyAction{
-				keySymDown{'a'}, keySymUp{'a'},
+				keySymStroke{'a'},
 			}, nil,
 		},
 	}
