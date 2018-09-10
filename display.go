@@ -25,6 +25,12 @@ type Display struct {
 	a       *atoms
 }
 
+// Setup instance
+type Setup struct {
+	*xproto.SetupInfo
+	d *Display
+}
+
 // Creates a new Display instance.
 //
 // Parameter d contains display name, such as ":0".
@@ -168,6 +174,11 @@ func (d *Display) FindWindow(wid uint32) (*Window, error) {
 	}, nil
 }
 
+func (d *Display) FontOpen(pattern string) (*Font, error) {
+	//TODO wrap error
+	return OpenFontOnDisplay(d, pattern)
+}
+
 func (d *Display) events() *events {
 	d.mx.Lock()
 	defer d.mx.Unlock()
@@ -239,8 +250,8 @@ func (d *Display) Atom(aid xproto.Atom) string {
 	return str
 }
 
-// Setup instance
-type Setup struct {
-	*xproto.SetupInfo
-	d *Display
+// Creates GraphicsContext on default screen.
+// Calls Display.Screen().NewGraphicsContext.
+func (d *Display) NewGraphicsContext(components ...GraphicsContextComponent) (*GraphicsContext, error) {
+	return d.DefaultScreen().NewGraphicsContext(components...)
 }

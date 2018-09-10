@@ -11,6 +11,12 @@ import (
 	"xgo"
 )
 
+var (
+	gcc xgo.GraphicsContextComponents
+	wo  xgo.WindowOperations
+	wa  xgo.WindowAttributes
+)
+
 func main() {
 
 	// load image
@@ -39,15 +45,47 @@ func main() {
 
 	screen := d.DefaultScreen()
 
+	//TODO with font info, so i don't have to fetch new and check for error
+	textGc, err := screen.NewGraphicsContext(
+		gcc.BackgroundPixel(screen.WhitePixel),
+		gcc.ForegroundPixel(screen.BlackPixel),
+		//gcc.Font(font),
+		gcc.NewFont("*fixed*-20-*"),
+		//TODO gcc.NewFontOptional(fontPattern),
+		//TODO gcc.FontInfoQuery
+	)
+	if err != nil {
+		fmt.Printf("Error creating graphics context for image text: %v\n", err)
+		return
+	}
+	fmt.Printf("Graphics context for image text crated: %v\n", textGc)
+	defer func() {
+		if err := textGc.Free(); err != nil {
+			fmt.Printf("Freeing graphics context for image text error: %v\n", err)
+			return
+		}
+		fmt.Printf("Graphics context for image text freed: %v\n", textGc)
+	}()
+
+	textGcFontInfo, err := textGc.FontInfo()
+	if err != nil {
+		fmt.Printf("Error getting font informations from graphics context for image text \"%v\": %v\n", textGc, err)
+		return
+	}
+	fmt.Printf("Font info properties from graphics context for image text: %v\n", textGcFontInfo.Properties())
+
 	// get screen bounds
 	screenBounds := image.Rect(0, 0, int(screen.WidthInPixels), int(screen.HeightInPixels))
-	imageBounds := img.Bounds()
+	pixmapSize := image.Pt(img.Bounds().Dx(), img.Bounds().Dy()+int(textGcFontInfo.FontAscent)+int(textGcFontInfo.FontDescent))
+	//TODO center text
+	pixmapTextPosition := image.Pt(0, img.Bounds().Dy()+int(textGcFontInfo.FontAscent))
+
 	//TODO? is it ok, to get the screen bounds? exists there a methot, that can rovide us with max window size?
-	// get window size
-	winBounds := screenBounds.Intersect(imageBounds)
+
+	// get window size to fit image and text
+	winBounds := screenBounds.Intersect(image.Rectangle{image.Pt(0, 0), pixmapSize})
 	// TODO? what about window borders? do they count?
 	if !winBounds.In(screenBounds) {
-		//TODO shrink image size to fit if needed
 		fmt.Printf("Image to large for screen\n")
 		return
 	}
@@ -58,7 +96,13 @@ func main() {
 		(screenBounds.Dy()-winBounds.Dy())/2,
 	))
 
-	pixmap, err := screen.NewPixmapFromImage(img)
+	pixmap, err := screen.NewPixmap(
+		pixmapSize,
+		xgo.PixmapOperations{}.Draw(
+			xgo.PixmapDrawers{}.Image(img),
+			xgo.PixmapDrawers{}.Text(imageFileName, pixmapTextPosition, textGc),
+		),
+	)
 	if err != nil {
 		fmt.Printf("Unable to create pixmap from image: %v\n", err)
 		return
@@ -74,13 +118,14 @@ func main() {
 
 	// create window
 	w, err := screen.NewWindow(
-		xgo.WindowOperations{}.Size(image.Pt(winBounds.Dx(), winBounds.Dy())),
-		xgo.WindowOperations{}.Attributes(
-			xgo.WindowAttributes{}.BackgroundPixmap(pixmap),
+		wo.Size(image.Pt(winBounds.Dx(), winBounds.Dy())),
+		wo.Attributes(
+			wa.BackgroundPixmap(pixmap),
 		),
-		xgo.WindowOperations{}.Clear(),
-		xgo.WindowOperations{}.Map(),
+		wo.Clear(),
+		wo.Map(),
 	)
+	//TODO make window NOT resizeable
 	if err != nil {
 		fmt.Printf("Default screen window creation error: %v\n", err)
 		return
@@ -115,100 +160,35 @@ func main() {
 
 }
 
+//TODO use this in another example
 /*
-
-	fontName := "*fixed*-20-*"
-	//fontName := "-Misc-Fixed-Medium-R-SemiCondensed--13-120-75-75-C-60-ISO8859-1"
-
-	// load font from x11 and draw text to our pixmap
-	if fonts, err := xproto.ListFonts(d.Conn, 10, uint16(len(fontName)), fontName).Reply(); err != nil {
-		fmt.Println("List fonts error:", err)
+	fontPattern := "*fixed*-20-*"
+	font, err := d.FontOpen(fontPattern)
+	if err != nil {
+		fmt.Printf("Error getting font for pattern \"%s\": %v\n", fontPattern, err)
 		return
-	} else {
-		fmt.Printf("fonts: %#v\n", fonts)
-		if fonts.NamesLen == 0 {
-			fmt.Printf("no font found\n")
-			//return
-		}
 	}
+	fmt.Printf("Font opened: %v\n", font)
+	defer func() {
+		if err := font.Close(); err != nil {
+			fmt.Printf("Closing font error: %v\n", err)
+			return
+		}
+		fmt.Printf("Font closed: %v\n", font)
+	}()
 
-	//TODO not working, just waiting for something
-	//if fonts, err := xproto.ListFontsWithInfo(d.Conn, 1, 6, "*mono*").Reply(); err != nil {
-	//	fmt.Println("List fonts with info error:", err)
-	//	return
-	//} else {
-	//	fmt.Printf("fonts with info: %#v\n", fonts)
-	//}
+	fontInfo, err := font.Info()
+	if err != nil {
+		fmt.Printf("Error getting font informations for font \"%v\": %v\n", font, err)
+		return
+	}
+	fmt.Printf("Font info properties: %v\n", fontInfo.Properties())
+*/
+/*
 
 	{ // draw something to pixmap
 
-		//if fp, err := xproto.GetFontPath(d.Conn).Reply(); err != nil {
-		//	fmt.Println("unable to GetFontPath:", err)
-		//	return
-		//} else {
-		//	fmt.Printf("GetFontPath reply: %#v\n", fp)
-		//}
 
-		//get font id, open font name to id, use foont id, close font id
-		fontId, err := xproto.NewFontId(d.Conn)
-		if err != nil {
-			fmt.Printf("Unable to get font id: %v\n", err)
-			return
-		}
-		fmt.Printf("Got new font id: %v\n", fontId)
-
-		if err := xproto.OpenFontChecked(
-			d.Conn,
-			fontId,
-			uint16(len(fontName)),
-			fontName,
-		).Check(); err != nil {
-			fmt.Printf("Unable to bind font id: %v to font name \"%s\": %v\n", fontId, fontName, err)
-			return
-		}
-
-		defer func() {
-			if err := xproto.CloseFontChecked(d.Conn, fontId).Check(); err != nil {
-				fmt.Printf("Unable to close font id: %v for cleanup: %v\n", fontId, err)
-				return
-			}
-			fmt.Printf("Closed font id: %v for cleanup\n", fontId)
-		}()
-
-		// create and allocate graphical content for text write
-		// use screen pexels and selected font
-		gc, err := xproto.NewGcontextId(d.Conn)
-		if err != nil {
-			fmt.Printf("Unable to allocate graphic context id for text write: %v\n", err)
-			return
-		}
-		if err := xproto.CreateGCChecked(
-			d.Conn,
-			gc,
-			xproto.Drawable(w.Screen().Root),
-			xproto.GcForeground|xproto.GcBackground|xproto.GcFont,
-			[]uint32{w.Screen().WhitePixel, w.Screen().BlackPixel, uint32(fontId)},
-			//xproto.GcForeground|xproto.GcBackground,
-			//[]uint32{w.Screen().WhitePixel, w.Screen().BlackPixel},
-		).Check(); err != nil {
-			fmt.Printf("Unable to create graphic context for text write: %v\n", err)
-			return
-		}
-		fmt.Println("gc for text write created")
-
-		fry, err := xproto.QueryFont(
-			d.Conn,
-			xproto.Fontable(gc),
-		).Reply()
-		if err != nil {
-			fmt.Println("unable to query for font:", err)
-			return
-		}
-		//fmt.Printf("Font reply: %#v\n", fry)
-		fmt.Println("Font reply properties:")
-		for _, prop := range fry.Properties {
-			fmt.Println("\t", d.Atom(prop.Name), ":", d.Atom(xproto.Atom(prop.Value)))
-		}
 
 		imageText := imageFileName
 
@@ -224,34 +204,6 @@ func main() {
 			c2bString,
 			uint16(len(c2bString)),
 		).Reply()
-
-		if err := xproto.ImageText8Checked(
-			d.Conn,
-			byte(len(imageText)),
-			xproto.Drawable(pixmapId),
-			gc,
-			(int16(imageBounds.Dx())-int16(ter.OverallWidth))/2,
-			fry.FontAscent,
-			imageText,
-		).Check(); err != nil {
-			fmt.Printf("Unable to write text to pixmap: %v\n", err)
-			return
-		}
-		fmt.Println("Wrote some text to pixmap")
-
-		if err := xproto.ImageText16Checked(
-			d.Conn,
-			byte(len(c2bString)),
-			xproto.Drawable(pixmapId),
-			gc,
-			int16(int32(imageBounds.Dx())-ter.OverallWidth)/2,
-			int16(imageBounds.Dy())-fry.FontDescent,
-			c2bString,
-		).Check(); err != nil {
-			fmt.Printf("Unable to write text to pixmap: %v\n", err)
-			return
-		}
-		fmt.Println("Wrote some text to pixmap")
 
 		if err := xproto.PolyLineChecked(
 			d.Conn,

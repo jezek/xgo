@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"log"
+	"unicode/utf16"
 
 	"github.com/jezek/xgb/xproto"
 )
@@ -15,6 +16,9 @@ type Pixmap struct {
 	Depth byte
 }
 
+func (p *Pixmap) Display() *Display {
+	return p.Screen().Display()
+}
 func (p *Pixmap) Screen() *Screen {
 	if p.s == nil {
 		log.Fatalf("Pixmap %v has no screen", p)
@@ -116,6 +120,43 @@ func (_ PixmapDrawers) Image(img image.Image) PixmapDrawer {
 		}
 		return nil
 	}
+}
+
+func (_ PixmapDrawers) Text(text string, position image.Point, gc *GraphicsContext) PixmapDrawer {
+	uint16String := utf16.Encode([]rune(text))
+	c2bString := make([]xproto.Char2b, len(uint16String))
+	for i, v := range uint16String {
+		c2bString[i].Byte1 = byte(v >> 8)
+		c2bString[i].Byte2 = byte(v)
+	}
+	return func(p *Pixmap) error {
+		return xproto.ImageText16Checked(
+			p.Display().Conn,
+			byte(len(c2bString)),
+			xproto.Drawable(p.Pixmap),
+			gc.Gcontext,
+			int16(position.X),
+			int16(position.Y),
+			c2bString,
+		).Check()
+	}
+	/*
+		if err := xproto.ImageText8Checked(
+			d.Conn,
+			byte(len(imageText)),
+			xproto.Drawable(pixmapId),
+			gc,
+			(int16(imageBounds.Dx())-int16(ter.OverallWidth))/2,
+			fry.FontAscent,
+			imageText,
+		).Check(); err != nil {
+			fmt.Printf("Unable to write text to pixmap: %v\n", err)
+			return
+		}
+		fmt.Println("Wrote some text to pixmap")
+
+		fmt.Println("Wrote some text to pixmap")
+	*/
 }
 
 // Uses all draw functions in order. Stops on first encountered error and returns it.

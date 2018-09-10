@@ -44,6 +44,14 @@ func (w *Window) Screen() *Screen {
 	return w.s
 }
 
+func (w *Window) Display() *Display {
+	return w.Screen().Display()
+}
+
+func (w *Window) Drawable() xproto.Drawable {
+	return xproto.Drawable(w.Window)
+}
+
 func (w *Window) Name() string {
 
 	reply, err := w.getProperty("_NET_WM_NAME")

@@ -54,3 +54,8 @@ func (s *Screen) NewPixmap(size image.Point, operations ...PixmapOperation) (*Pi
 func (s *Screen) NewPixmapFromImage(image image.Image, operations ...PixmapOperation) (*Pixmap, error) {
 	return NewPixmapFromImageOnScreen(s, image, operations...)
 }
+
+// Creates GraphicsContext with this creens root window depth.
+func (s *Screen) NewGraphicsContext(components ...GraphicsContextComponent) (*GraphicsContext, error) {
+	return NewGraphicsContextOnDisplay(s.Display(), s.Window(), components...)
+}
