@@ -32,6 +32,10 @@ func (gc *GraphicsContext) Display() *Display {
 	return gc.d
 }
 
+func (gc *GraphicsContext) TextExtents(text string) (*xproto.QueryTextExtentsReply, error) {
+	return TextExtents(text, gc)
+}
+
 // Create and allocate graphics context on display with drawable root and depth using provided components
 // Returned graphical context can be used with any destination drawable having the same root and depthe.
 // Use with other drawables results in a BadMatch error.
@@ -109,7 +113,6 @@ func (gc *GraphicsContext) Free() error {
 	}
 
 	if gc.fontCloseOnFree != nil {
-		fmt.Println("freeing gc font")
 		if err := gc.fontCloseOnFree.Close(); err != nil {
 			return errWrap{"GraphicsContext.Free", errWrap{fmt.Sprintf("unable to close graphics contexts opened font %v", gc.fontCloseOnFree), err}}
 		}
@@ -154,6 +157,11 @@ func (_ GraphicsContextComponents) ForegroundPixel(val uint32) GraphicsContextCo
 	}
 }
 
+//TODO gcc.NewFontOptional(fontPattern),
+//TODO? gcc.FontInfoQuery
+// Creates opens first font matching pattern an assigns to graphics context,
+// if used in graphics context creation or editing. Font is closed upon graphics context freeing,
+// or graphics contexts font beeing updated (eg. with this component again).
 func (_ GraphicsContextComponents) NewFont(pattern string) GraphicsContextComponent {
 	return func(gc *GraphicsContext) (map[uint32]uint32, error) {
 		if gc.fontCloseOnFree != nil {

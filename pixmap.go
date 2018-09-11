@@ -159,6 +159,25 @@ func (_ PixmapDrawers) Text(text string, position image.Point, gc *GraphicsConte
 	*/
 }
 
+//TODO implement all xproto draw functions
+//TODO theese draw operations shoul be not only for pixmap, but all drawable objects (which are they???)
+/*
+
+		if err := xproto.PolyLineChecked(
+			d.Conn,
+			xproto.CoordModeOrigin,
+			xproto.Drawable(pixmapId),
+			gc,
+			[]xproto.Point{xproto.Point{0, 0}, xproto.Point{100, 100}, xproto.Point{0, 100}},
+		).Check(); err != nil {
+			fmt.Printf("Unable draw line: %v\n", err)
+			return
+		}
+		fmt.Println("line draw")
+
+	}
+
+*/
 // Uses all draw functions in order. Stops on first encountered error and returns it.
 func (p *Pixmap) Draw(drawers ...PixmapDrawer) error {
 	for i, drawer := range drawers {

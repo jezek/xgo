@@ -19,9 +19,10 @@ var (
 
 func main() {
 
+	//TODO move images to example package & use generate to be able to use them in examples
 	// load image
-	imageFileName := "pokeslon.jpg"
-	//imageFileName := "jez.jpg"
+	//imageFileName := "pokeslon.jpg"
+	imageFileName := "jez.jpg"
 	reader, err := os.Open(imageFileName)
 	if err != nil {
 		fmt.Printf("Unable to open \"%s\": %v\n", imageFileName, err)
@@ -45,14 +46,10 @@ func main() {
 
 	screen := d.DefaultScreen()
 
-	//TODO with font info, so i don't have to fetch new and check for error
 	textGc, err := screen.NewGraphicsContext(
 		gcc.BackgroundPixel(screen.WhitePixel),
 		gcc.ForegroundPixel(screen.BlackPixel),
-		//gcc.Font(font),
 		gcc.NewFont("*fixed*-20-*"),
-		//TODO gcc.NewFontOptional(fontPattern),
-		//TODO gcc.FontInfoQuery
 	)
 	if err != nil {
 		fmt.Printf("Error creating graphics context for image text: %v\n", err)
@@ -67,18 +64,18 @@ func main() {
 		fmt.Printf("Graphics context for image text freed: %v\n", textGc)
 	}()
 
-	textGcFontInfo, err := textGc.FontInfo()
+	textExtents, err := textGc.TextExtents(imageFileName)
 	if err != nil {
-		fmt.Printf("Error getting font informations from graphics context for image text \"%v\": %v\n", textGc, err)
+		fmt.Printf("Error getting text extents informations from graphics context for image text \"%v\": %v\n", textGc, err)
 		return
 	}
-	fmt.Printf("Font info properties from graphics context for image text: %v\n", textGcFontInfo.Properties())
+	fmt.Printf("Text extents info from graphics context for image text: %v\n", textExtents)
 
 	// get screen bounds
 	screenBounds := image.Rect(0, 0, int(screen.WidthInPixels), int(screen.HeightInPixels))
-	pixmapSize := image.Pt(img.Bounds().Dx(), img.Bounds().Dy()+int(textGcFontInfo.FontAscent)+int(textGcFontInfo.FontDescent))
-	//TODO center text
-	pixmapTextPosition := image.Pt(0, img.Bounds().Dy()+int(textGcFontInfo.FontAscent))
+	//TODO if pixmap text is wider than image, use text width and center image
+	pixmapSize := image.Pt(img.Bounds().Dx(), img.Bounds().Dy()+2*int(textExtents.FontAscent+textExtents.FontDescent))
+	pixmapTextPosition := image.Pt((pixmapSize.X-int(textExtents.OverallWidth))/2, img.Bounds().Dy()+int(textExtents.FontAscent+((textExtents.FontAscent+textExtents.FontDescent)/2)))
 
 	//TODO? is it ok, to get the screen bounds? exists there a methot, that can rovide us with max window size?
 
@@ -183,40 +180,4 @@ func main() {
 		return
 	}
 	fmt.Printf("Font info properties: %v\n", fontInfo.Properties())
-*/
-/*
-
-	{ // draw something to pixmap
-
-
-
-		imageText := imageFileName
-
-		uint16String := utf16.Encode([]rune(imageText))
-		c2bString := make([]xproto.Char2b, len(uint16String))
-		for i, v := range uint16String {
-			c2bString[i].Byte1 = byte(v >> 8)
-			c2bString[i].Byte2 = byte(v)
-		}
-		ter, err := xproto.QueryTextExtents(
-			d.Conn,
-			xproto.Fontable(fontId),
-			c2bString,
-			uint16(len(c2bString)),
-		).Reply()
-
-		if err := xproto.PolyLineChecked(
-			d.Conn,
-			xproto.CoordModeOrigin,
-			xproto.Drawable(pixmapId),
-			gc,
-			[]xproto.Point{xproto.Point{0, 0}, xproto.Point{100, 100}, xproto.Point{0, 100}},
-		).Check(); err != nil {
-			fmt.Printf("Unable draw line: %v\n", err)
-			return
-		}
-		fmt.Println("line draw")
-
-	}
-
 */

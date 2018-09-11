@@ -3,6 +3,7 @@ package xgo
 import (
 	"fmt"
 	"log"
+	"unicode/utf16"
 
 	"github.com/jezek/xgb/xproto"
 )
@@ -74,6 +75,10 @@ func (f *Font) Info() (*FontInfo, error) {
 
 func (f *Font) Fontable() xproto.Fontable {
 	return xproto.Fontable(f.Font)
+}
+
+func (f *Font) TextExtents(text string) (*xproto.QueryTextExtentsReply, error) {
+	return TextExtents(text, f)
 }
 
 //TODO integrate
@@ -148,4 +153,22 @@ func FontQuery(f Fontable) (*FontInfo, error) {
 		return nil, errWrap{"FontQuery", errWrap{fmt.Sprintf("unable to query for fontable %v", f), err}}
 	}
 	return &FontInfo{reply, f}, nil
+}
+
+//TODO? return non xproto result?
+func TextExtents(text string, f Fontable) (*xproto.QueryTextExtentsReply, error) {
+	//TODO duplicate code
+	uint16String := utf16.Encode([]rune(text))
+	c2bString := make([]xproto.Char2b, len(uint16String))
+	for i, v := range uint16String {
+		c2bString[i].Byte1 = byte(v >> 8)
+		c2bString[i].Byte2 = byte(v)
+	}
+	return xproto.QueryTextExtents(
+		//TODO use .Connection() everywhere
+		f.Display().Conn,
+		f.Fontable(),
+		c2bString,
+		uint16(len(c2bString)),
+	).Reply()
 }
