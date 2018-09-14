@@ -157,22 +157,44 @@ func (_ GraphicsContextComponents) ForegroundPixel(val uint32) GraphicsContextCo
 	}
 }
 
-//TODO gcc.NewFontOptional(fontPattern),
-//TODO? gcc.FontInfoQuery
-// Creates opens first font matching pattern an assigns to graphics context,
+// Opens first font matching pattern, if there is any and assigns it to graphics context,
+// If font does not exist, previous is kept, or if there is no previous, default is used.
 // if used in graphics context creation or editing. Font is closed upon graphics context freeing,
 // or graphics contexts font beeing updated (eg. with this component again).
-func (_ GraphicsContextComponents) NewFont(pattern string) GraphicsContextComponent {
+func (_ GraphicsContextComponents) NewFontIfMatch(pattern string) GraphicsContextComponent {
 	return func(gc *GraphicsContext) (map[uint32]uint32, error) {
+		font, err := gc.Display().FontOpen(pattern)
+		if err != nil {
+			return map[uint32]uint32{}, nil
+		}
+
 		if gc.fontCloseOnFree != nil {
 			if err := gc.fontCloseOnFree.Close(); err != nil {
 				return nil, errWrap{"GraphicsContextComponents.Font", errWrap{"GraphicsContextComponent", errWrap{fmt.Sprintf("unable to close graphics contexts opened font %v before assigning new", gc.fontCloseOnFree), err}}}
 			}
 		}
+
+		gc.fontCloseOnFree = font
+		return map[uint32]uint32{xproto.GcFont: uint32(font.Font)}, nil
+	}
+}
+
+// Opens first font matching pattern an assigns to graphics context,
+// if used in graphics context creation or editing. Font is closed upon graphics context freeing,
+// or graphics contexts font beeing updated (eg. with this component again).
+func (_ GraphicsContextComponents) NewFont(pattern string) GraphicsContextComponent {
+	return func(gc *GraphicsContext) (map[uint32]uint32, error) {
 		font, err := gc.Display().FontOpen(pattern)
 		if err != nil {
 			return nil, errWrap{"GraphicsContextComponents.NewFont", errWrap{"GraphicsContextComponent", err}}
 		}
+
+		if gc.fontCloseOnFree != nil {
+			if err := gc.fontCloseOnFree.Close(); err != nil {
+				return nil, errWrap{"GraphicsContextComponents.Font", errWrap{"GraphicsContextComponent", errWrap{fmt.Sprintf("unable to close graphics contexts opened font %v before assigning new", gc.fontCloseOnFree), err}}}
+			}
+		}
+
 		gc.fontCloseOnFree = font
 		return map[uint32]uint32{xproto.GcFont: uint32(font.Font)}, nil
 	}
