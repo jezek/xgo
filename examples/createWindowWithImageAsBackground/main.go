@@ -47,8 +47,8 @@ func main() {
 	screen := d.DefaultScreen()
 
 	textGc, err := screen.NewGraphicsContext(
-		gcc.BackgroundPixel(screen.WhitePixel),
-		gcc.ForegroundPixel(screen.BlackPixel),
+		gcc.BackgroundPixel(screen.BlackPixel),
+		gcc.ForegroundPixel(screen.WhitePixel),
 		gcc.NewFont("*fixed*-20-*"),
 	)
 	if err != nil {

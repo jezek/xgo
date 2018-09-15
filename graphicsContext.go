@@ -70,7 +70,7 @@ func NewGraphicsContextOnDisplay(d *Display, drawable Drawable, components ...Gr
 	}
 
 	// sort componentsInfo by mask ascending
-	sort.SliceStable(components, func(i, j int) bool {
+	sort.SliceStable(componentsInfo, func(i, j int) bool {
 		return componentsInfo[i].mask < componentsInfo[j].mask
 	})
 
