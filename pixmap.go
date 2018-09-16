@@ -46,88 +46,15 @@ type PixmapDrawers struct{}
 
 var pd PixmapDrawers
 
-func (_ PixmapDrawers) Image(img image.Image) PixmapDrawer {
-	// precompute everything what we can
-
-	imageBounds := img.Bounds()
-	// convert image to BGRA order, cause x11 works this way
-	pixBGRA := make([]byte, 0, imageBounds.Dx()*imageBounds.Dy())
-	for y := imageBounds.Min.Y; y < imageBounds.Max.Y; y++ {
-		for x := imageBounds.Min.X; x < imageBounds.Max.X; x++ {
-			r, g, b, a := img.At(x, y).RGBA()
-			// r is uint32, but color inside is from 0 to 0xffff (16 bit), so for a 8 bit repesentation just shift right by 8 bits
-			pixBGRA = append(pixBGRA, byte(b>>8), byte(g>>8), byte(r>>8), byte(a>>8))
-		}
-	}
-	//fmt.Println("image converted to BGRA bytes", pixBGRA[:60], "...")
-
-	// we cand send limited numbers of bytes per request, so calculate batches for drawing
-	maxBytesToSend := SizeReqestMax - (SizeRequestPutImageFixedPart + 4)
-	maxAreaToSend := maxBytesToSend / 4
-	if maxAreaToSend*4 != maxBytesToSend {
-		//fmt.Printf("maxAreaToSend(%d) * 4 (%d) != maxBytesToSend (%d)\n", maxAreaToSend, maxAreaToSend*4, maxBytesToSend)
-		maxBytesToSend = maxAreaToSend * 4
-	}
-
-	return func(p *Pixmap) error {
-		// create and allocate graphical content
-		gc, err := xproto.NewGcontextId(p.Screen().Display().Conn)
-		if err != nil {
-			return errWrap{"Pixmap.DrawImage", fmt.Errorf("unable to obtain graphic context id: %v\n", err)}
-		}
-		if err := xproto.CreateGCChecked(
-			p.Screen().Display().Conn,
-			gc,
-			xproto.Drawable(p.Screen().Root),
-			xproto.GcForeground|xproto.GcBackground,
-			[]uint32{p.Screen().WhitePixel, p.Screen().BlackPixel},
-		).Check(); err != nil {
-			return errWrap{"Pixmap.DrawImage", fmt.Errorf("unable to create graphic context: %v\n", err)}
-		}
-		//fmt.Println("gc created")
-
-		// free graphic context after image drawing
-		defer func() {
-			if err := xproto.FreeGCChecked(
-				p.Screen().Display().Conn,
-				gc,
-			).Check(); err != nil {
-				log.Printf("Pixmap.DrawImage: freeing graphic context error: %v", err)
-			}
-		}()
-
-		//TODO the rectangles can be precomputed!!!
-		rectangles := p.decomposeToRectanglesWithAreaMax(imageBounds, maxAreaToSend)
-
-		// draw our image to pixmap
-		for _, rectangle := range rectangles {
-			// draw our image stored in pixBGRA to pixmap (pid) using gc
-			if err := xproto.PutImageChecked(
-				p.Screen().Display().Conn,
-				xproto.ImageFormatZPixmap,
-				xproto.Drawable(p.Pixmap),
-				gc,
-				uint16(rectangle.Dx()),
-				uint16(rectangle.Dy()),
-				int16(rectangle.Min.X),
-				int16(rectangle.Min.Y),
-				0, // left padding
-				p.Depth,
-				p.getRectangleBytes(rectangle, pixBGRA),
-			).Check(); err != nil {
-				return errWrap{"Pixmap.DrawImage", fmt.Errorf("unable to write image bgra pixels to pixmap: %v\n", err)}
-			}
-			//fmt.Printf("pixBGRA data for image rectangle %v inserted into drawable pixmap, using gc\n", rectangle)
-		}
-		return nil
-	}
+// Draws image "img" to pixmap, so top-left corner of image "img.Bounds().Min" is at point [0,0].
+func (pd PixmapDrawers) Image(img image.Image) PixmapDrawer {
+	return pd.ImageAt(img, image.Pt(0, 0))
 }
 
-//TODO! duplicate code
+// Draws image "img" to pixmap, so top-left corner of image "img.Bounds().Min" is at point "pt".
 func (_ PixmapDrawers) ImageAt(img image.Image, pt image.Point) PixmapDrawer {
 	// precompute everything what we can
 
-	//TODO what if image does not originate in pt(0,0)?
 	imageBounds := img.Bounds()
 	// convert image to BGRA order, cause x11 works this way
 	pixBGRA := make([]byte, 0, imageBounds.Dx()*imageBounds.Dy())
@@ -147,6 +74,8 @@ func (_ PixmapDrawers) ImageAt(img image.Image, pt image.Point) PixmapDrawer {
 		//fmt.Printf("maxAreaToSend(%d) * 4 (%d) != maxBytesToSend (%d)\n", maxAreaToSend, maxAreaToSend*4, maxBytesToSend)
 		maxBytesToSend = maxAreaToSend * 4
 	}
+
+	rectangles := PixmapDrawers{}.decomposeToRectanglesWithAreaMax(imageBounds, maxAreaToSend)
 
 	return func(p *Pixmap) error {
 		// create and allocate graphical content
@@ -174,9 +103,6 @@ func (_ PixmapDrawers) ImageAt(img image.Image, pt image.Point) PixmapDrawer {
 				log.Printf("Pixmap.DrawImage: freeing graphic context error: %v", err)
 			}
 		}()
-
-		//TODO the rectangles can be precomputed!!!
-		rectangles := p.decomposeToRectanglesWithAreaMax(imageBounds, maxAreaToSend)
 
 		// draw our image to pixmap
 		for _, rectangle := range rectangles {
@@ -271,7 +197,7 @@ func (p *Pixmap) Draw(drawers ...PixmapDrawer) error {
 	return nil
 }
 
-func (p *Pixmap) decomposeToRectanglesWithAreaMax(rect image.Rectangle, maxArea int) []image.Rectangle {
+func (p PixmapDrawers) decomposeToRectanglesWithAreaMax(rect image.Rectangle, maxArea int) []image.Rectangle {
 	if rect.Dx()*rect.Dy() <= maxArea {
 		return []image.Rectangle{rect}
 	}

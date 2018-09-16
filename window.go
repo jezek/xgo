@@ -448,13 +448,21 @@ func NewWindowOnScreen(s *Screen, operations ...WindowOperation) (*Window, error
 	//TODO remember created windows and hadle them on display close
 	w := &Window{wid, s, nil, nil}
 
-	for i, operation := range operations {
-		if err := operation(w); err != nil {
-			w.Destroy()
-			return nil, errWrap{"NewWindowOnScreen", fmt.Errorf("operation no %d error: %v", i, err)}
-		}
+	if err := w.Operations(operations...); err != nil {
+		w.Destroy()
+		return nil, errWrap{"NewWindowOnScreen", errWrap{"operations error", err}}
 	}
 	return w, nil
+}
+
+func (w *Window) Operations(operations ...WindowOperation) error {
+	for i, operation := range operations {
+		if err := operation(w); err != nil {
+			//TODO return window to previous state
+			return errWrap{"Window.Opertion", errWrap{fmt.Sprintf("operation no %d error", i), err}}
+		}
+	}
+	return nil
 }
 
 type WindowOperation func(*Window) error
