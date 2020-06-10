@@ -6,7 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"time"
-	"xgo"
+
+	"github.com/jezek/xgo"
 )
 
 func main() {

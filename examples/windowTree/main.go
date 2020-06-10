@@ -4,7 +4,12 @@ package main
 import (
 	"fmt"
 	"log"
-	"xgo"
+
+	"github.com/jezek/xgo"
+)
+
+var (
+	wo xgo.WindowOperations
 )
 
 func main() {

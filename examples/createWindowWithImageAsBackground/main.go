@@ -8,7 +8,8 @@ import (
 	_ "image/png"
 	"os"
 	"os/signal"
-	"xgo"
+
+	"github.com/jezek/xgo"
 )
 
 var (
