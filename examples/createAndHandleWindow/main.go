@@ -2,9 +2,15 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"os"
 	"os/signal"
-	"xgo"
+
+	"github.com/jezek/xgo"
+)
+
+var (
+	wo xgo.WindowOperations
 )
 
 func main() {
@@ -17,7 +23,10 @@ func main() {
 	fmt.Printf("Display opened: %#v\n", d)
 	//TODO how to detect closed display?
 
-	w, err := d.NewWindow()
+	w, err := d.NewWindow(
+		wo.Size(image.Pt(100, 100)),
+		wo.Clear(),
+	)
 	if err != nil {
 		fmt.Println(err)
 		return

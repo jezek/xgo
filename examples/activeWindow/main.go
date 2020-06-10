@@ -4,7 +4,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"xgo"
+
+	"github.com/jezek/xgo"
 )
 
 func main() {

@@ -4,7 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"xgo"
+
+	"github.com/jezek/xgo"
 )
 
 var keySymString string
@@ -17,13 +18,10 @@ func main() {
 	keySymString = flag.Arg(0)
 
 	if flag.NArg() != 1 {
-		//flag.PrintDefaults()
-		//os.Exit(1)
-		keySymString = "aacute"
-		if formated {
-			keySymString = "%\"" + keySymString + "\""
-		}
-		//awkc.Write("あbč%\"Enter\"")
+		keySymString = "date%\"Return\""
+		//TODO not working, only printing b (and Return)
+		//keySymString = "あbč%\"Return\""
+		formated = true
 	}
 
 	d, err := xgo.OpenDisplay("")

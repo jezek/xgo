@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-	"xgo"
+
+	"github.com/jezek/xgo"
 )
 
 func main() {

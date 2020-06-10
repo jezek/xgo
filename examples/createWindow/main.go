@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
-	"xgo"
+	"image"
+
+	"github.com/jezek/xgo"
 )
 
 func main() {
@@ -13,7 +15,9 @@ func main() {
 	}
 	fmt.Printf("Display opened: %#v\n", d)
 
-	w, err := d.NewWindow()
+	w, err := d.NewWindow(
+		xgo.WindowOperations{}.Size(image.Pt(100, 100)),
+	)
 	if err != nil {
 		fmt.Println(err)
 		return
